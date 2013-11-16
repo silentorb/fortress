@@ -9,6 +9,9 @@ var Fortress = (function (_super) {
     function Fortress() {
         _super.apply(this, arguments);
     }
+    Fortress.prototype.query_access = function (query) {
+        return when.resolve(false);
+    };
     return Fortress;
 })(Vineyard.Bulb);
 //# sourceMappingURL=fortress.js.map

@@ -135,7 +135,7 @@ declare module Ground {
         public process_property_filter(filter): Internal_Query_Source;
         public process_property_filters(): Internal_Query_Source;
         public run(args?: {}): Promise;
-        public run_as_service(arguments?: {}): Promise;
+        public run_single(args?: {}): Promise;
     }
 }
 declare var uuid;
@@ -150,9 +150,10 @@ declare module Ground {
         public db: Ground.Database;
         public is_service: boolean;
         public user_id;
-        static log_queries: boolean;
+        public log_queries: boolean;
         constructor(trellis: Ground.Trellis, seed: Ground.ISeed, ground?: Ground.Core);
         private generate_sql(trellis);
+        private update_embedded_seed(trellis, property, value);
         private create_record(trellis);
         private update_record(trellis, id, key_condition);
         private apply_insert(property, value);
@@ -211,6 +212,7 @@ declare module Ground {
         public property_types: Property_Type[];
         public db: Ground.Database;
         public log_queries: boolean;
+        public log_updates: boolean;
         constructor(config, db_name: string);
         public add_trellis(name: string, source: ITrellis_Source, initialize_parent?: boolean): Ground.Trellis;
         public get_base_property_type(type);
@@ -293,6 +295,7 @@ declare module Ground {
 }
 declare module Ground {
     enum Relationships {
+        none,
         one_to_one,
         one_to_many,
         many_to_many,
@@ -319,31 +322,13 @@ declare module Ground {
         public get_field_type();
         static get_field_value_sync(value);
         public get_sql_value(value, type?);
-        public get_field_value(value, as_service?: boolean, update?: boolean): Promise;
+        public get_field_value(value, as_service?: boolean, update?: boolean);
         public get_other_id(entity);
         public get_other_property(create_if_none?: boolean): Property;
         public get_property_type(): Ground.Property_Type;
         public get_referenced_trellis(): Ground.Trellis;
         public get_relationship(): Relationships;
         public query(): string;
-    }
-}
-declare module Ground {
-    interface Query_Request {
-        trellis: string;
-        filters?: Ground.Query_Filter[];
-        sorts?: Ground.Query_Sort[];
-        expansions?: string[];
-        reductions?: string[];
-    }
-    interface Update_Request {
-        objects: any[];
-    }
-    class Irrigation {
-        public ground: Ground.Core;
-        constructor(ground: Ground.Core);
-        public query(request: Query_Request): Promise;
-        public update(request: Update_Request, uid?): Promise;
     }
 }
 declare module "ground" {

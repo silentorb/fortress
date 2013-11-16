@@ -1,9 +1,7 @@
 /// <reference path="ground.d.ts" />
 /// <reference path="metahub.d.ts" />
 declare class Vineyard {
-    public bulbs: {
-        [name: string]: Vineyard.Bulb;
-    };
+    public bulbs: any;
     public config;
     public config_folder;
     public ground: Ground.Core;
@@ -23,6 +21,24 @@ declare module Vineyard {
         public grow(): void;
         public start(): void;
         public stop(): void;
+    }
+}
+declare module Vineyard {
+    interface IUser {
+        id?;
+        name?: string;
+        roles?: IRole[];
+    }
+    interface IRole {
+        id?;
+        name?: string;
+    }
+    class User {
+        public id: number;
+        public name: string;
+        public session;
+        constructor(source: IUser);
+        public simple(): IUser;
     }
 }
 declare module "vineyard" {
