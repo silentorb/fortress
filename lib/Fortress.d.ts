@@ -20,6 +20,7 @@ declare module Fortress {
     }
     class Gate extends MetaHub.Meta_Object {
         public fortress: Fortress;
+        public on: string[];
         constructor(fortress: Fortress);
         public check(user: Vineyard.IUser, resource, info): Promise;
     }
@@ -27,7 +28,9 @@ declare module Fortress {
         public check(user: Vineyard.IUser, resource, info): Promise;
     }
     class User_Content extends Gate {
+        private check_rows_ownership(user, rows);
         public check(user: Vineyard.IUser, resource, info): Promise;
+        public limited_to_user(query: Ground.Query, user: Vineyard.IUser): boolean;
     }
 }
 export = Fortress;

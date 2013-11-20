@@ -103,8 +103,10 @@ declare module Ground {
         public arguments: {};
         public expansions: string[];
         public wrappers: Query_Wrapper[];
-        private filters;
-        private property_filters;
+        private row_cache;
+        public type: string;
+        public filters: string[];
+        public property_filters: Query_Filter[];
         static operators: string[];
         private links;
         constructor(trellis: Ground.Trellis, base_path?: string);
@@ -132,6 +134,7 @@ declare module Ground {
         public process_row(row, authorized_properties?): Promise;
         public process_property_filter(filter): Internal_Query_Source;
         public process_property_filters(): Internal_Query_Source;
+        public run_core(): Promise;
         public run(): Promise;
         public run_single(): Promise;
     }
