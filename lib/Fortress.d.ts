@@ -7,10 +7,12 @@ declare class Fortress extends Vineyard.Bulb {
     public gates: Fortress.Gate[];
     public add_gate(source: Fortress.Gate_Source): void;
     public get_roles(user): Promise;
-    public user_has_role(user, role_name): Promise;
+    public user_has_role(user, role_name: string): boolean;
+    public user_has_any_role(user, role_names: string[]): boolean;
     public grow(): void;
-    public query_access(user: Vineyard.IUser, query: Ground.Query): Promise;
+    public select_gates(user, patterns): Fortress.Gate[];
     public atomic_access(user: Vineyard.IUser, resource, actions?: string[]);
+    public query_access(user: Vineyard.IUser, query: Ground.Query): Promise;
     public update_access(user: Vineyard.IUser, updates): Promise;
 }
 declare module Fortress {
@@ -20,17 +22,23 @@ declare module Fortress {
     }
     class Gate extends MetaHub.Meta_Object {
         public fortress: Fortress;
+        public roles: string[];
         public on: string[];
-        constructor(fortress: Fortress);
-        public check(user: Vineyard.IUser, resource, info): Promise;
+        constructor(fortress: Fortress, source);
+        public check(user: Vineyard.IUser, resource, info?): Promise;
     }
     class Admin extends Gate {
-        public check(user: Vineyard.IUser, resource, info): Promise;
+        public check(user: Vineyard.IUser, resource, info?): Promise;
     }
     class User_Content extends Gate {
         private check_rows_ownership(user, rows);
-        public check(user: Vineyard.IUser, resource, info): Promise;
+        public check(user: Vineyard.IUser, resource, info?): Promise;
         public limited_to_user(query: Ground.Query, user: Vineyard.IUser): boolean;
+    }
+    class Link extends Gate {
+        public path: string;
+        constructor(fortress: Fortress, source);
+        public check(user: Vineyard.IUser, resource, info?): Promise;
     }
 }
 export = Fortress;

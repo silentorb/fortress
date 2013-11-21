@@ -79,9 +79,15 @@ declare module Ground {
         start: string;
         end: string;
     }
-    interface External_Query_Source {
-        fields?;
-        filters?: any[];
+    interface Property_Query_Source {
+        filters?: Query_Filter[];
+        sorts?: Query_Sort[];
+        expansions?: string[];
+        reductions?: string[];
+        properties?: Property_Query_Source[];
+    }
+    interface External_Query_Source extends Property_Query_Source {
+        trellis: string;
     }
     interface Internal_Query_Source {
         fields?;
@@ -105,9 +111,12 @@ declare module Ground {
         public wrappers: Query_Wrapper[];
         private row_cache;
         public type: string;
+        public properties;
+        public source: External_Query_Source;
         public filters: string[];
         public property_filters: Query_Filter[];
         static operators: string[];
+        public each;
         private links;
         constructor(trellis: Ground.Trellis, base_path?: string);
         public add_arguments(args): void;
@@ -127,13 +136,16 @@ declare module Ground {
             [name: string]: Ground.Property;
         }, include_primary_key?: boolean): Internal_Query_Source;
         public generate_property_join(property: Ground.Property, seeds): string;
-        public get_many_list(seed, id, property: Ground.Property, relationship: Ground.Relationships): Promise;
+        public create_sub_query(trellis: Ground.Trellis, property: Ground.Property): Query;
+        public get_many_list(seed, property: Ground.Property, relationship: Ground.Relationships): Promise;
         public get_path(...args: string[]): string;
         public get_reference_object(row, property: Ground.Property): Promise;
         public has_expansion(path: string): boolean;
-        public process_row(row, authorized_properties?): Promise;
+        public process_row(row): Promise;
+        public query_link_property(seed, property): Promise;
         public process_property_filter(filter): Internal_Query_Source;
         public process_property_filters(): Internal_Query_Source;
+        public extend(source: External_Query_Source): void;
         public run_core(): Promise;
         public run(): Promise;
         public run_single(): Promise;

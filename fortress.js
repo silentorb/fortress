@@ -19,9 +19,7 @@ var Fortress = (function (_super) {
         if (!type)
             throw new Error('Could not find gate: "' + source.type + '".');
 
-        var gate = new type(this);
-        gate.on = source.on;
-
+        var gate = new type(this, source);
         this.gates.push(gate);
     };
 
@@ -31,17 +29,27 @@ var Fortress = (function (_super) {
 
         var query = this.ground.create_query('role');
         query.add_property_filter('users', user.guid);
-        return query.run_core();
+        return query.run_core().then(function (roles) {
+            return user.roles = roles;
+        });
     };
 
     Fortress.prototype.user_has_role = function (user, role_name) {
-        return this.get_roles(user).then(function (roles) {
-            for (var i in roles) {
-                if (roles[i].name == role_name)
+        for (var i in user.roles) {
+            if (user.roles[i].name == role_name)
+                return true;
+        }
+        return false;
+    };
+
+    Fortress.prototype.user_has_any_role = function (user, role_names) {
+        for (var a in user.roles) {
+            for (var b in role_names) {
+                if (user.roles[a].name == role_names[b])
                     return true;
             }
-            return false;
-        });
+        }
+        return false;
     };
 
     Fortress.prototype.grow = function () {
@@ -55,43 +63,64 @@ var Fortress = (function (_super) {
         }
     };
 
-    Fortress.prototype.query_access = function (user, query) {
-        if (typeof user !== 'object')
-            throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".');
-
-        return this.atomic_access(user, query, [query.trellis.name + '.query', '*.query', query.trellis.name + '.*']);
+    Fortress.prototype.select_gates = function (user, patterns) {
+        var _this = this;
+        return this.gates.filter(function (gate) {
+            if (_this.user_has_any_role(user, gate.roles))
+                for (var a = 0; a < patterns.length; ++a) {
+                    for (var b = 0; b < gate.on.length; ++b) {
+                        if (patterns[a] == gate.on[b])
+                            return true;
+                    }
+                }
+            return false;
+        });
     };
 
     Fortress.prototype.atomic_access = function (user, resource, actions) {
         if (typeof actions === "undefined") { actions = []; }
-        var _this = this;
-        var promises = this.map_invoke('all', user, resource);
+        var gates = this.select_gates(user, actions);
 
-        var additional = actions.map(function (action) {
-            return _this.map_invoke(action, user, resource);
+        var promises = gates.map(function (gate) {
+            return gate.check(user, resource);
         });
-
-        var promises = [].concat.apply(promises, additional);
 
         return when.all(promises).then(function (results) {
             return results.indexOf(true) > -1;
         });
     };
 
-    Fortress.prototype.update_access = function (user, updates) {
+    Fortress.prototype.query_access = function (user, query) {
         var _this = this;
-        if (!MetaHub.is_array(updates))
-            updates = [updates];
-
         if (typeof user !== 'object')
             throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".');
 
-        var promises = updates.map(function (update) {
-            return _this.atomic_access(user, update, [update.get_access_name(), '*.update', update.trellis.name + '.*']);
+        return this.get_roles(user).then(function () {
+            return _this.atomic_access(user, query, [
+                'all',
+                '*.query',
+                query.trellis.name + '.query',
+                query.trellis.name + '.*'
+            ]);
         });
+    };
 
-        return when.all(promises).then(function (results) {
-            return results.indexOf(false) === -1;
+    Fortress.prototype.update_access = function (user, updates) {
+        var _this = this;
+        return this.get_roles(user).then(function () {
+            if (!MetaHub.is_array(updates))
+                updates = [updates];
+
+            if (typeof user !== 'object')
+                throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".');
+
+            var promises = updates.map(function (update) {
+                return _this.atomic_access(user, update, ['all', update.get_access_name(), '*.update', update.trellis.name + '.*']);
+            });
+
+            return when.all(promises).then(function (results) {
+                return results.indexOf(false) === -1;
+            });
         });
     };
     return Fortress;
@@ -101,11 +130,17 @@ var Fortress;
 (function (Fortress) {
     var Gate = (function (_super) {
         __extends(Gate, _super);
-        function Gate(fortress) {
+        function Gate(fortress, source) {
             _super.call(this);
             this.fortress = fortress;
+            this.on = source.on;
+            if (!source.roles || source.roles.length == 0)
+                throw new Error('Each gate requires at least one role.');
+
+            this.roles = source.roles;
         }
         Gate.prototype.check = function (user, resource, info) {
+            if (typeof info === "undefined") { info = null; }
             return when.resolve(false);
         };
         return Gate;
@@ -118,7 +153,8 @@ var Fortress;
             _super.apply(this, arguments);
         }
         Admin.prototype.check = function (user, resource, info) {
-            return this.fortress.user_has_role(user, 'admin');
+            if (typeof info === "undefined") { info = null; }
+            return when.resolve(true);
         };
         return Admin;
     })(Gate);
@@ -139,31 +175,27 @@ var Fortress;
         };
 
         User_Content.prototype.check = function (user, resource, info) {
+            if (typeof info === "undefined") { info = null; }
             var _this = this;
-            return this.fortress.user_has_role(user, 'user').then(function (result) {
-                if (!result)
-                    return false;
+            if (resource.type == 'query') {
+                if (this.limited_to_user(resource, user))
+                    return when.resolve(true);
 
-                if (resource.type == 'query') {
-                    if (_this.limited_to_user(resource, user))
-                        return true;
+                return resource.run_core().then(function (rows) {
+                    return _this.check_rows_ownership(user, rows);
+                });
+            } else {
+                var id = resource.seed[resource.trellis.primary_key];
 
-                    return resource.run_core().then(function (rows) {
-                        return _this.check_rows_ownership(user, rows);
-                    });
-                } else {
-                    var id = resource.seed[resource.trellis.primary_key];
+                if (!id)
+                    when.resolve(true);
 
-                    if (!id)
-                        return true;
-
-                    var query = _this.fortress.ground.create_query(resource.trellis.name);
-                    query.add_key_filter(id);
-                    return query.run_core().then(function (rows) {
-                        return !rows || _this.check_rows_ownership(user, rows);
-                    });
-                }
-            });
+                var query = this.fortress.ground.create_query(resource.trellis.name);
+                query.add_key_filter(id);
+                return query.run_core().then(function (rows) {
+                    return rows.length == 0 || _this.check_rows_ownership(user, rows);
+                });
+            }
         };
 
         User_Content.prototype.limited_to_user = function (query, user) {
@@ -178,6 +210,20 @@ var Fortress;
         return User_Content;
     })(Gate);
     Fortress.User_Content = User_Content;
+
+    var Link = (function (_super) {
+        __extends(Link, _super);
+        function Link(fortress, source) {
+            _super.call(this, fortress, source);
+            this.path = source.path;
+        }
+        Link.prototype.check = function (user, resource, info) {
+            if (typeof info === "undefined") { info = null; }
+            return when.resolve(true);
+        };
+        return Link;
+    })(Gate);
+    Fortress.Link = Link;
 })(Fortress || (Fortress = {}));
 
 

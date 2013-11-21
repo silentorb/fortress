@@ -16,14 +16,7 @@ class Fortress extends Vineyard.Bulb {
     if (!type)
       throw new Error('Could not find gate: "' + source.type + '".')
 
-    var gate = new type(this)
-    gate.on = source.on
-
-//    for (var i = 0; i < source.on.length; ++i) {
-//      var on = source.on[i]
-////      rule.listen(this, on, rule.check)
-//    }
-
+    var gate = new type(this, source)
     this.gates.push(gate)
   }
 
@@ -34,17 +27,25 @@ class Fortress extends Vineyard.Bulb {
     var query = this.ground.create_query('role')
     query.add_property_filter('users', user.guid)
     return query.run_core()
+      .then((roles)=> user.roles = roles)
   }
 
-  user_has_role(user, role_name):Promise {
-    return this.get_roles(user)
-      .then((roles) => {
-        for (var i in roles) {
-          if (roles[i].name == role_name)
-            return true
-        }
-        return false
-      })
+  user_has_role(user, role_name:string):boolean {
+    for (var i in user.roles) {
+      if (user.roles[i].name == role_name)
+        return true
+    }
+    return false
+  }
+
+  user_has_any_role(user, role_names:string[]):boolean {
+    for (var a in user.roles) {
+      for (var b in role_names) {
+        if (user.roles[a].name == role_names[b])
+          return true
+      }
+    }
+    return false
   }
 
   grow() {
@@ -58,22 +59,23 @@ class Fortress extends Vineyard.Bulb {
     }
   }
 
-  query_access(user:Vineyard.IUser, query:Ground.Query):Promise {
-    if (typeof user !== 'object')
-      throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
-
-    return this.atomic_access(user, query, [query.trellis.name + '.query', '*.query', query.trellis.name + '.*'])
+  select_gates(user, patterns):Fortress.Gate[] {
+    return this.gates.filter((gate) => {
+      if (this.user_has_any_role(user, gate.roles))
+      for (var a = 0; a < patterns.length; ++a) {
+        for (var b = 0; b < gate.on.length; ++b) {
+          if (patterns[a] == gate.on[b])
+            return true
+        }
+      }
+      return false
+    })
   }
 
   atomic_access(user:Vineyard.IUser, resource, actions:string[] = []) {
-    var promises = this.map_invoke('all', user, resource)
+    var gates = this.select_gates(user, actions)
 
-    var additional = actions.map((action)=>
-        this.map_invoke(action, user, resource)
-    )
-
-    // Flatten array of arrays and add it to promises
-    var promises:Promise[] = [].concat.apply(promises, additional)
+    var promises = gates.map((gate)=> gate.check(user, resource))
 
     // An unoptimized poor-man's method of checking
     return when.all(promises)
@@ -82,22 +84,40 @@ class Fortress extends Vineyard.Bulb {
     )
   }
 
-  update_access(user:Vineyard.IUser, updates):Promise {
-    if (!MetaHub.is_array(updates))
-      updates = [ updates ]
-
+  query_access(user:Vineyard.IUser, query:Ground.Query):Promise {
     if (typeof user !== 'object')
       throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
 
-    var promises = updates.map((update)=> {
-      return this.atomic_access(user, update, [update.get_access_name(), '*.update', update.trellis.name + '.*'])
-    })
-
-    // An unoptimized poor-man's method of checking
-    return when.all(promises)
-      .then((results)=>
-        results.indexOf(false) === -1
+    return this.get_roles(user)
+      .then(()=>
+        this.atomic_access(user, query, [
+          'all',
+          '*.query',
+          query.trellis.name + '.query',
+          query.trellis.name + '.*'
+        ])
     )
+  }
+
+  update_access(user:Vineyard.IUser, updates):Promise {
+    return this.get_roles(user)
+      .then(()=> {
+        if (!MetaHub.is_array(updates))
+          updates = [ updates ]
+
+        if (typeof user !== 'object')
+          throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
+
+        var promises = updates.map((update)=> {
+          return this.atomic_access(user, update, ['all', update.get_access_name(), '*.update', update.trellis.name + '.*'])
+        })
+
+        // An unoptimized poor-man's method of checking
+        return when.all(promises)
+          .then((results)=>
+            results.indexOf(false) === -1
+        )
+      })
   }
 }
 
@@ -110,21 +130,27 @@ module Fortress {
 
   export class Gate extends MetaHub.Meta_Object {
     fortress:Fortress
+    roles:string[]
     on:string[]
 
-    constructor(fortress:Fortress) {
+    constructor(fortress:Fortress, source) {
       super()
       this.fortress = fortress
+      this.on = source.on
+      if (!source.roles || source.roles.length == 0)
+        throw new Error('Each gate requires at least one role.')
+
+      this.roles = source.roles
     }
 
-    check(user:Vineyard.IUser, resource, info):Promise {
+    check(user:Vineyard.IUser, resource, info = null):Promise {
       return when.resolve(false)
     }
   }
 
   export class Admin extends Gate {
-    check(user:Vineyard.IUser, resource, info):Promise {
-      return this.fortress.user_has_role(user, 'admin')
+    check(user:Vineyard.IUser, resource, info = null):Promise {
+      return when.resolve(true)
     }
   }
 
@@ -139,33 +165,27 @@ module Fortress {
       return true
     }
 
-    check(user:Vineyard.IUser, resource, info):Promise {
-      return this.fortress.user_has_role(user, 'user')
-        .then((result)=> {
-          if (!result)
-            return false
+    check(user:Vineyard.IUser, resource, info = null):Promise {
+      if (resource.type == 'query') {
+        if (this.limited_to_user(resource, user))
+          return when.resolve(true)
 
-          if (resource.type == 'query') {
-            if (this.limited_to_user(resource, user))
-              return true
+        return resource.run_core()
+          .then((rows)=> this.check_rows_ownership(user, rows))
+      }
+      else {
+        var id = resource.seed[resource.trellis.primary_key]
 
-            return resource.run_core()
-              .then((rows)=> this.check_rows_ownership(user, rows))
-          }
-          else {
-            var id = resource.seed[resource.trellis.primary_key]
+        if (!id) // No id means this must be a creation.
+          when.resolve(true)
 
-            if (!id) // No id means this must be a creation.
-              return true
-
-            var query = this.fortress.ground.create_query(resource.trellis.name)
-            query.add_key_filter(id)
-            return query.run_core()
-              // No rows equates to true because that means this is a creation,
-              // and the new creation will definitely be owned by the current user
-              .then((rows)=> !rows || this.check_rows_ownership(user, rows))
-          }
-        })
+        var query = this.fortress.ground.create_query(resource.trellis.name)
+        query.add_key_filter(id)
+        return query.run_core()
+          // No rows should result in 'true' because that means this is a creation,
+          // and the new creation will definitely be owned by the current user
+          .then((rows)=> rows.length == 0 || this.check_rows_ownership(user, rows))
+      }
     }
 
     limited_to_user(query:Ground.Query, user:Vineyard.IUser):boolean {
@@ -176,6 +196,20 @@ module Fortress {
       return filters[0].value == user.guid
     }
   }
+
+  export class Link extends Gate {
+    path:string
+
+    constructor(fortress:Fortress, source) {
+      super(fortress, source)
+      this.path = source.path
+    }
+
+    check(user:Vineyard.IUser, resource, info = null):Promise {
+      return when.resolve(true)
+    }
+  }
+
 }
 
 export = Fortress
