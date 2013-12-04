@@ -1,7 +1,8 @@
-/// <reference path="../metahub.d.ts" />
-/// <reference path="../ground.d.ts" />
-/// <reference path="../vineyard.d.ts" />
-/// <reference path="../node.d.ts" />
+/// <reference path="metahub.d.ts" />
+/// <reference path="ground.d.ts" />
+/// <reference path="vineyard.d.ts" />
+/// <reference path="node.d.ts" />
+declare var fs;
 declare class Fortress extends Vineyard.Bulb {
     public gate_types: {};
     public gates: Fortress.Gate[];
@@ -32,6 +33,7 @@ declare module Fortress {
     }
     class User_Content extends Gate {
         private check_rows_ownership(user, rows);
+        private static is_open_query(query);
         public check(user: Vineyard.IUser, resource, info?): Promise;
         public limited_to_user(query: Ground.Query, user: Vineyard.IUser): boolean;
     }
@@ -41,7 +43,6 @@ declare module Fortress {
         public check(user: Vineyard.IUser, resource, info?): Promise;
     }
 }
-
 declare module "fortress" {
   export = Fortress
 }

@@ -25,7 +25,7 @@ declare module Vineyard {
 }
 declare module Vineyard {
     interface IUser {
-        guid?;
+        id?;
         name?: string;
         roles?: IRole[];
     }

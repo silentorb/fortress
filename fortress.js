@@ -1,10 +1,9 @@
-var Ground = require('ground');var Vineyard = require('vineyard');var when = require('when');var __extends = this.__extends || function (d, b) {
+var MetaHub = require('metahub');var Ground = require('ground');var Vineyard = require('vineyard');var when = require('when');var __extends = this.__extends || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
     __.prototype = b.prototype;
     d.prototype = new __();
 };
-var MetaHub = require('metahub');
 var fs = require('fs');
 
 var Fortress = (function (_super) {
@@ -28,7 +27,7 @@ var Fortress = (function (_super) {
             return when.resolve(user.roles);
 
         var query = this.ground.create_query('role');
-        query.add_property_filter('users', user.guid);
+        query.add_property_filter('users', user.id);
         return query.run_core().then(function (roles) {
             return user.roles = roles;
         });
@@ -55,6 +54,7 @@ var Fortress = (function (_super) {
     Fortress.prototype.grow = function () {
         this.gate_types['admin'] = Fortress.Admin;
         this.gate_types['user_content'] = Fortress.User_Content;
+        this.gate_types['link'] = Fortress.Link;
         var json = fs.readFileSync(this.config.config_path, 'ascii');
         var config = JSON.parse(json);
 
@@ -82,11 +82,23 @@ var Fortress = (function (_super) {
         var gates = this.select_gates(user, actions);
 
         var promises = gates.map(function (gate) {
-            return gate.check(user, resource);
+            return gate.check(user, resource).then(function (access) {
+                return {
+                    gate: gate,
+                    access: access
+                };
+            });
         });
 
         return when.all(promises).then(function (results) {
-            return results.indexOf(true) > -1;
+            for (var i = 0; i < results.length; ++i) {
+                if (results[i].access)
+                    return results[i];
+            }
+            return {
+                gate: null,
+                access: false
+            };
         });
     };
 
@@ -119,7 +131,17 @@ var Fortress = (function (_super) {
             });
 
             return when.all(promises).then(function (results) {
-                return results.indexOf(false) === -1;
+                for (var i = 0; i < results.length; ++i) {
+                    if (!results[i].access)
+                        return {
+                            gate: null,
+                            access: false
+                        };
+                }
+                return {
+                    gate: null,
+                    access: true
+                };
             });
         });
     };
@@ -166,19 +188,33 @@ var Fortress;
             _super.apply(this, arguments);
         }
         User_Content.prototype.check_rows_ownership = function (user, rows) {
+            if (rows.length == 0)
+                throw new Error('No records were found to check ownership.');
             for (var i = 0; i < rows.length; ++i) {
                 var row = rows[i];
-                if (row['user'] != user.guid)
+                if (row['user'] != user.id)
                     return false;
             }
             return true;
         };
 
+        User_Content.is_open_query = function (query) {
+            var filters = query.property_filters.filter(function (filter) {
+                return filter.property == query.trellis.primary_key;
+            });
+            return filters.length == 0;
+        };
+
         User_Content.prototype.check = function (user, resource, info) {
             if (typeof info === "undefined") { info = null; }
             var _this = this;
+            console.log('what?');
+
             if (resource.type == 'query') {
                 if (this.limited_to_user(resource, user))
+                    return when.resolve(true);
+
+                if (User_Content.is_open_query(resource))
                     return when.resolve(true);
 
                 return resource.run_core().then(function (rows) {
@@ -200,12 +236,12 @@ var Fortress;
 
         User_Content.prototype.limited_to_user = function (query, user) {
             var filters = query.property_filters.filter(function (filter) {
-                return filter.name == 'user';
+                return filter.property == 'user';
             });
             if (filters.length !== 1)
                 return false;
 
-            return filters[0].value == user.guid;
+            return filters[0].value == user.id;
         };
         return User_Content;
     })(Gate);
@@ -219,14 +255,12 @@ var Fortress;
         }
         Link.prototype.check = function (user, resource, info) {
             if (typeof info === "undefined") { info = null; }
-            return when.resolve(true);
+            return when.resolve(false);
         };
         return Link;
     })(Gate);
     Fortress.Link = Link;
 })(Fortress || (Fortress = {}));
-
-
-module.exports = Fortress;
-
-//# sourceMappingURL=Fortress.js.map
+require('source-map-support').install();
+//# sourceMappingURL=fortress.js.map
+module.exports = Fortress

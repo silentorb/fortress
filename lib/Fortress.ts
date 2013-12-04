@@ -1,11 +1,12 @@
 //declare function require(name:string):any;
+/// <reference path="references.ts"/>
 /// <reference path="../defs/metahub.d.ts"/>
 /// <reference path="../defs/ground.d.ts"/>
 /// <reference path="../defs/vineyard.d.ts"/>
 /// <reference path="../defs/node.d.ts"/>
 
-import MetaHub = require('metahub')
-import fs = require('fs')
+//var MetaHub = require('metahub')
+var fs = require('fs')
 
 class Fortress extends Vineyard.Bulb {
   gate_types = {}
@@ -25,7 +26,7 @@ class Fortress extends Vineyard.Bulb {
       return when.resolve(user.roles)
 
     var query = this.ground.create_query('role')
-    query.add_property_filter('users', user.guid)
+    query.add_property_filter('users', user.id)
     return query.run_core()
       .then((roles)=> user.roles = roles)
   }
@@ -51,6 +52,7 @@ class Fortress extends Vineyard.Bulb {
   grow() {
     this.gate_types['admin'] = Fortress.Admin
     this.gate_types['user_content'] = Fortress.User_Content
+    this.gate_types['link'] = Fortress.Link
     var json = fs.readFileSync(this.config.config_path, 'ascii')
     var config = JSON.parse(json)
 
@@ -62,12 +64,12 @@ class Fortress extends Vineyard.Bulb {
   select_gates(user, patterns):Fortress.Gate[] {
     return this.gates.filter((gate) => {
       if (this.user_has_any_role(user, gate.roles))
-      for (var a = 0; a < patterns.length; ++a) {
-        for (var b = 0; b < gate.on.length; ++b) {
-          if (patterns[a] == gate.on[b])
-            return true
+        for (var a = 0; a < patterns.length; ++a) {
+          for (var b = 0; b < gate.on.length; ++b) {
+            if (patterns[a] == gate.on[b])
+              return true
+          }
         }
-      }
       return false
     })
   }
@@ -75,12 +77,29 @@ class Fortress extends Vineyard.Bulb {
   atomic_access(user:Vineyard.IUser, resource, actions:string[] = []) {
     var gates = this.select_gates(user, actions)
 
-    var promises = gates.map((gate)=> gate.check(user, resource))
+    var promises = gates.map((gate)=>
+        gate.check(user, resource)
+          .then((access) => {
+            return {
+              gate: gate,
+              access: access
+            }
+          }
+        )
+    )
 
     // An unoptimized poor-man's method of checking
     return when.all(promises)
-      .then((results)=>
-        results.indexOf(true) > -1
+      .then((results)=> {
+        for (var i = 0; i < results.length; ++i) {
+          if (results[i].access)
+            return results[i]
+        }
+        return {
+          gate: null,
+          access: false
+        }
+      }
     )
   }
 
@@ -112,10 +131,22 @@ class Fortress extends Vineyard.Bulb {
           return this.atomic_access(user, update, ['all', update.get_access_name(), '*.update', update.trellis.name + '.*'])
         })
 
-        // An unoptimized poor-man's method of checking
+        // An unoptimized poor-man's method of checking.  In the long run the processing should
+        // be sequential instead of processing everything at once.
         return when.all(promises)
-          .then((results)=>
-            results.indexOf(false) === -1
+          .then((results)=> {
+            for (var i = 0; i < results.length; ++i) {
+              if (!results[i].access)
+                return {
+                  gate: null,
+                  access: false
+                }
+            }
+            return {
+              gate: null,
+              access: true
+            }
+          }
         )
       })
   }
@@ -157,17 +188,31 @@ module Fortress {
   export class User_Content extends Gate {
 
     private check_rows_ownership(user, rows) {
+      if (rows.length == 0)
+      throw new Error('No records were found to check ownership.')
       for (var i = 0; i < rows.length; ++i) {
         var row = rows[i]
-        if (row['user'] != user.guid)
+        if (row['user'] != user.id)
           return false
       }
       return true
     }
 
+    private static is_open_query(query):boolean {
+      var filters = query.property_filters.filter(
+        (filter)=> filter.property == query.trellis.primary_key
+      )
+      return filters.length == 0
+    }
+
     check(user:Vineyard.IUser, resource, info = null):Promise {
+      console.log('what?')
+//      throw new Error()
       if (resource.type == 'query') {
         if (this.limited_to_user(resource, user))
+          return when.resolve(true)
+
+        if (User_Content.is_open_query(resource))
           return when.resolve(true)
 
         return resource.run_core()
@@ -189,11 +234,11 @@ module Fortress {
     }
 
     limited_to_user(query:Ground.Query, user:Vineyard.IUser):boolean {
-      var filters = query.property_filters.filter((filter)=>filter.name == 'user')
+      var filters = query.property_filters.filter((filter)=>filter.property == 'user')
       if (filters.length !== 1)
         return false
 
-      return filters[0].value == user.guid
+      return filters[0].value == user.id
     }
   }
 
@@ -206,10 +251,9 @@ module Fortress {
     }
 
     check(user:Vineyard.IUser, resource, info = null):Promise {
-      return when.resolve(true)
+
+      return when.resolve(false)
     }
   }
 
 }
-
-export = Fortress

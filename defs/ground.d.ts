@@ -149,10 +149,16 @@ declare module Ground {
         public run_core(): Promise;
         public run(): Promise;
         public run_single(): Promise;
+        static query_path(path: string, args, ground: Ground.Core): Promise;
+        static follow_path(path: string, args, ground: Ground.Core): string;
+        private static process_tokens(tokens, args, ground);
     }
 }
 declare var uuid;
 declare module Ground {
+    interface IUser {
+        id;
+    }
     class Update implements Ground.IUpdate {
         public seed: Ground.ISeed;
         private fields;
@@ -161,22 +167,21 @@ declare module Ground {
         public main_table: string;
         public ground: Ground.Core;
         public db: Ground.Database;
-        public is_service: boolean;
-        public user;
+        public user: IUser;
         public log_queries: boolean;
         constructor(trellis: Ground.Trellis, seed: Ground.ISeed, ground?: Ground.Core);
         public get_access_name(): string;
         private generate_sql(trellis);
-        private update_embedded_seed(trellis, property, value);
+        private update_embedded_seed(property, value);
         private create_record(trellis);
         private update_record(trellis, id, key_condition);
         private apply_insert(property, value);
         public is_create_property(property: Ground.Property): boolean;
-        private get_field_value(property);
+        private get_field_value(property, seed);
         private is_update_property(property);
         private update_links(trellis, id, create?);
         private update_many_to_many(property, create?);
-        private update_one_to_many(property, id);
+        private update_one_to_many(property);
         private update_reference(property, id);
         private update_reference_object(other, property);
         public run(): Promise;
@@ -240,13 +245,13 @@ declare module Ground {
         public get_base_property_type(type);
         public convert_value(value, type);
         public create_query(trellis_name: string, base_path?: string): Ground.Query;
-        public create_update(trellis, seed?: ISeed, user?): IUpdate;
+        public create_update(trellis, seed?: ISeed, user?: Ground.IUser): IUpdate;
         public delete_object(trellis: Ground.Trellis, seed: ISeed): Promise;
         public initialize_trellises(subset: Ground.Trellis[], all?): void;
-        public insert_object(trellis, seed?: ISeed, uid?, as_service?: boolean): Promise;
+        public insert_object(trellis, seed?: ISeed, user?: Ground.IUser, as_service?: boolean): Promise;
         static is_private(property: Ground.Property): boolean;
         static is_private_or_readonly(property: Ground.Property): boolean;
-        public update_object(trellis, seed?: ISeed, user?, as_service?: boolean): Promise;
+        public update_object(trellis, seed?: ISeed, user?: Ground.IUser, as_service?: boolean): Promise;
         static load_json_from_file(filename: string);
         public load_property_types(filename: string): void;
         public load_schema_from_file(filename: string): void;
@@ -335,6 +340,7 @@ declare module Ground {
         public other_trellis_name: string;
         public is_private: boolean;
         public is_virtual: boolean;
+        public is_composite_sub: boolean;
         public composite_properties: any[];
         constructor(name: string, source: Ground.IProperty_Source, trellis: Ground.Trellis);
         public initialize_composite_reference(other_trellis: Ground.Trellis): void;
@@ -343,14 +349,14 @@ declare module Ground {
         public get_field_name(): string;
         public get_field_override(create_if_missing?: boolean): Ground.IField;
         public get_field_type();
-        static get_field_value_sync(value);
+        public get_seed_name(): string;
         public get_sql_value(value, type?);
-        public get_field_value(value, as_service?: boolean, update?: boolean);
         public get_other_id(entity);
         public get_other_property(create_if_none?: boolean): Property;
         public get_property_type(): Ground.Property_Type;
         public get_referenced_trellis(): Ground.Trellis;
         public get_relationship(): Relationships;
+        public get_field_query(): string;
         public query(): string;
     }
 }
