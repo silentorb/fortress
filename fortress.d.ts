@@ -38,8 +38,9 @@ declare module Fortress {
         public limited_to_user(query: Ground.Query, user: Vineyard.IUser): boolean;
     }
     class Link extends Gate {
-        public path: string;
+        public paths: string[];
         constructor(fortress: Fortress, source);
+        public check_path(path: string, user: Vineyard.IUser, resource): Promise;
         public check(user: Vineyard.IUser, resource, info?): Promise;
     }
 }

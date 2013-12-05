@@ -189,7 +189,7 @@ module Fortress {
 
     private check_rows_ownership(user, rows) {
       if (rows.length == 0)
-      throw new Error('No records were found to check ownership.')
+        throw new Error('No records were found to check ownership.')
       for (var i = 0; i < rows.length; ++i) {
         var row = rows[i]
         if (row['user'] != user.id)
@@ -206,8 +206,6 @@ module Fortress {
     }
 
     check(user:Vineyard.IUser, resource, info = null):Promise {
-      console.log('what?')
-//      throw new Error()
       if (resource.type == 'query') {
         if (this.limited_to_user(resource, user))
           return when.resolve(true)
@@ -243,16 +241,33 @@ module Fortress {
   }
 
   export class Link extends Gate {
-    path:string
+    paths:string[]
 
     constructor(fortress:Fortress, source) {
       super(fortress, source)
-      this.path = source.path
+      this.paths = source.paths
+    }
+
+    check_path(path:string, user:Vineyard.IUser, resource):Promise {
+      var id = resource.get_primary_key_value()
+
+      // This whole gate is only meant for specific queries, not general ones.
+      if (id === undefined)
+        return when.resolve(false)
+
+      return Ground.Query.query_path(path, [user.id, id], this.fortress.ground)
     }
 
     check(user:Vineyard.IUser, resource, info = null):Promise {
-
-      return when.resolve(false)
+      var promises = this.paths.map((x)=> this.check_path(x, user, resource))
+      return when.all(promises)
+        .then((results)=> {
+          for (var i = 0; i < results.length; ++i) {
+            if (results[i] && results[i].total > 0)
+              return true
+          }
+          return false
+        })
     }
   }
 

@@ -20,7 +20,9 @@ declare module Ground {
     }
 }
 declare module Ground {
-    class Trellis {
+    interface ITrellis {
+    }
+    class Trellis implements ITrellis {
         public plural: string;
         public parent: Trellis;
         public ground: Ground.Core;
@@ -48,10 +50,11 @@ declare module Ground {
             [name: string]: Ground.Property;
         };
         public get_id(source);
-        public get_join(main_table: string): string;
+        public get_parent_join(main_table: string): string;
         public get_links(): Ground.Property[];
         public get_plural(): string;
         public get_primary_keys(): any[];
+        public get_reference_property(other_trellis: Trellis): Ground.Property;
         public get_table_name(): string;
         public get_table_query(): string;
         public get_tree(): Trellis[];
@@ -135,7 +138,8 @@ declare module Ground {
         public get_fields_and_joins(properties: {
             [name: string]: Ground.Property;
         }, include_primary_key?: boolean): Internal_Query_Source;
-        public generate_property_join(property: Ground.Property, seeds): string;
+        public get_primary_key_value();
+        static generate_property_join(property: Ground.Property, seeds): string;
         public create_sub_query(trellis: Ground.Trellis, property: Ground.Property): Query;
         public get_many_list(seed, property: Ground.Property, relationship: Ground.Relationships): Promise;
         public get_path(...args: string[]): string;
@@ -149,8 +153,9 @@ declare module Ground {
         public run_core(): Promise;
         public run(): Promise;
         public run_single(): Promise;
-        static query_path(path: string, args, ground: Ground.Core): Promise;
-        static follow_path(path: string, args, ground: Ground.Core): string;
+        static generate_join(property: Ground.Property, cross_property?: Ground.Property): string;
+        static query_path(path: string, args: any[], ground: Ground.Core): Promise;
+        static follow_path(path: string, args: any[], ground: Ground.Core): string;
         private static process_tokens(tokens, args, ground);
     }
 }
@@ -259,7 +264,7 @@ declare module Ground {
         public load_trellises(trellises: ITrellis_Source[]): Ground.Trellis[];
         private parse_schema(data);
         static remove_fields(object, trellis: Ground.Trellis, filter);
-        public sanitize_trellis_argument(trellis);
+        public sanitize_trellis_argument(trellis): Ground.Trellis;
         static to_bool(input): boolean;
     }
 }
@@ -301,7 +306,7 @@ declare module Ground {
         type: string;
         property: Ground.Property;
     }
-    class Link_Trellis {
+    class Link_Trellis implements Ground.ITrellis {
         public properties;
         public seed;
         public table_name: string;
@@ -314,11 +319,13 @@ declare module Ground {
         static create_reference(property: Ground.Property, name: string): Identity_Key;
         public generate_join(seeds: {}): string;
         public generate_delete_row(seeds: any[]): string;
-        public generate_insert(seeds: {}): string;
+        public generate_insert(seeds): string;
         private generate_table_name();
-        public get_condition(key: Identity_Key, seed): string;
+        public get_key_condition(key: Identity_Key, seed, fill_blanks?: boolean): string;
         public get_condition_string(seeds): string;
+        public get_identity_conditions(identity: Identity, seed, fill_blanks?: boolean): any[];
         public get_conditions(seeds): string[];
+        public get_identity_by_trellis(trellis: Ground.Trellis): Identity;
     }
 }
 declare module Ground {

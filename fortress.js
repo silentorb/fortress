@@ -208,8 +208,6 @@ var Fortress;
         User_Content.prototype.check = function (user, resource, info) {
             if (typeof info === "undefined") { info = null; }
             var _this = this;
-            console.log('what?');
-
             if (resource.type == 'query') {
                 if (this.limited_to_user(resource, user))
                     return when.resolve(true);
@@ -251,11 +249,30 @@ var Fortress;
         __extends(Link, _super);
         function Link(fortress, source) {
             _super.call(this, fortress, source);
-            this.path = source.path;
+            this.paths = source.paths;
         }
+        Link.prototype.check_path = function (path, user, resource) {
+            var id = resource.get_primary_key_value();
+
+            if (id === undefined)
+                return when.resolve(false);
+
+            return Ground.Query.query_path(path, [user.id, id], this.fortress.ground);
+        };
+
         Link.prototype.check = function (user, resource, info) {
             if (typeof info === "undefined") { info = null; }
-            return when.resolve(false);
+            var _this = this;
+            var promises = this.paths.map(function (x) {
+                return _this.check_path(x, user, resource);
+            });
+            return when.all(promises).then(function (results) {
+                for (var i = 0; i < results.length; ++i) {
+                    if (results[i] && results[i].total > 0)
+                        return true;
+                }
+                return false;
+            });
         };
         return Link;
     })(Gate);
