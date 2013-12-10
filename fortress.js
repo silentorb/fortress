@@ -145,6 +145,24 @@ var Fortress = (function (_super) {
             });
         });
     };
+
+    Fortress.sequential_check = function (list, next, check) {
+        var def = when.defer();
+        var index = 0;
+        var iteration = function (result) {
+            if (check(result))
+                return def.resolve(result);
+
+            if (++index >= list.length)
+                return def.reject(result);
+
+            return next(list[index]).then(iteration);
+        };
+
+        next(list[0]).then(iteration);
+
+        return def.promise;
+    };
     return Fortress;
 })(Vineyard.Bulb);
 
@@ -222,7 +240,7 @@ var Fortress;
                 var id = resource.seed[resource.trellis.primary_key];
 
                 if (!id)
-                    when.resolve(true);
+                    return when.resolve(true);
 
                 var query = this.fortress.ground.create_query(resource.trellis.name);
                 query.add_key_filter(id);
@@ -249,28 +267,32 @@ var Fortress;
         __extends(Link, _super);
         function Link(fortress, source) {
             _super.call(this, fortress, source);
-            this.paths = source.paths;
+            this.paths = source.paths.map(Ground.path_to_array);
         }
         Link.prototype.check_path = function (path, user, resource) {
-            var id = resource.get_primary_key_value();
+            var args, id = resource.get_primary_key_value();
 
             if (id === undefined)
                 return when.resolve(false);
 
-            return Ground.Query.query_path(path, [user.id, id], this.fortress.ground);
+            if (path[0] == 'user')
+                args = [user.id, id];
+else
+                args = [id, user.id];
+
+            return Ground.Query.query_path(path, args, this.fortress.ground);
         };
 
         Link.prototype.check = function (user, resource, info) {
             if (typeof info === "undefined") { info = null; }
             var _this = this;
-            var promises = this.paths.map(function (x) {
-                return _this.check_path(x, user, resource);
-            });
-            return when.all(promises).then(function (results) {
-                for (var i = 0; i < results.length; ++i) {
-                    if (results[i] && results[i].total > 0)
-                        return true;
-                }
+            return Fortress.sequential_check(this.paths, function (path) {
+                return _this.check_path(path, user, resource);
+            }, function (result) {
+                return result && result.total > 0;
+            }).then(function (result) {
+                return true;
+            }, function (result) {
                 return false;
             });
         };

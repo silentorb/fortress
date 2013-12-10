@@ -150,6 +150,26 @@ class Fortress extends Vineyard.Bulb {
         )
       })
   }
+
+  static sequential_check(list:any[], next:(arg)=>Promise, check):Promise {
+    var def = when.defer()
+    var index = 0
+    var iteration = (result)=> {
+      if (check(result))
+        return def.resolve(result)
+
+      if (++index >= list.length)
+        return def.reject(result)
+
+      return next(list[index])
+        .then(iteration)
+    }
+
+    next(list[0])
+      .then(iteration)
+
+    return def.promise
+  }
 }
 
 module Fortress {
@@ -220,7 +240,7 @@ module Fortress {
         var id = resource.seed[resource.trellis.primary_key]
 
         if (!id) // No id means this must be a creation.
-          when.resolve(true)
+          return when.resolve(true)
 
         var query = this.fortress.ground.create_query(resource.trellis.name)
         query.add_key_filter(id)
@@ -245,29 +265,34 @@ module Fortress {
 
     constructor(fortress:Fortress, source) {
       super(fortress, source)
-      this.paths = source.paths
+      this.paths = source.paths.map(Ground.path_to_array)
     }
 
     check_path(path:string, user:Vineyard.IUser, resource):Promise {
-      var id = resource.get_primary_key_value()
+      var args, id = resource.get_primary_key_value()
 
       // This whole gate is only meant for specific queries, not general ones.
       if (id === undefined)
         return when.resolve(false)
 
-      return Ground.Query.query_path(path, [user.id, id], this.fortress.ground)
+      if (path[0] == 'user')
+        args = [user.id, id]
+      else
+        args = [id, user.id]
+
+      return Ground.Query.query_path(path, args, this.fortress.ground)
     }
 
     check(user:Vineyard.IUser, resource, info = null):Promise {
-      var promises = this.paths.map((x)=> this.check_path(x, user, resource))
-      return when.all(promises)
-        .then((results)=> {
-          for (var i = 0; i < results.length; ++i) {
-            if (results[i] && results[i].total > 0)
-              return true
-          }
-          return false
-        })
+      return Fortress.sequential_check(
+        this.paths,
+        (path)=> this.check_path(path, user, resource),
+        (result)=> result && result.total > 0
+      )
+        .then(
+        (result)=> true,
+        (result)=> false
+      )
     }
   }
 

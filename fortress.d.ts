@@ -15,6 +15,7 @@ declare class Fortress extends Vineyard.Bulb {
     public atomic_access(user: Vineyard.IUser, resource, actions?: string[]);
     public query_access(user: Vineyard.IUser, query: Ground.Query): Promise;
     public update_access(user: Vineyard.IUser, updates): Promise;
+    static sequential_check(list: any[], next: (arg: any) => Promise, check): Promise;
 }
 declare module Fortress {
     interface Gate_Source {
