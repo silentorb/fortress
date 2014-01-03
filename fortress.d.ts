@@ -13,6 +13,8 @@ declare class Fortress extends Vineyard.Bulb {
     public grow(): void;
     public select_gates(user, patterns): Fortress.Gate[];
     public atomic_access(user: Vineyard.IUser, resource, actions?: string[]);
+    public get_explicit_query_properties(query: Ground.Query): any[];
+    public get_query_events(query: Ground.Query): any[];
     public query_access(user: Vineyard.IUser, query: Ground.Query): Promise;
     public update_access(user: Vineyard.IUser, updates): Promise;
     static sequential_check(list: any[], next: (arg: any) => Promise, check): Promise;
