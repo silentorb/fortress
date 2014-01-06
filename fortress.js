@@ -1,4 +1,4 @@
-var MetaHub = require('metahub');var Ground = require('ground');var Vineyard = require('vineyard');var when = require('when');var __extends = this.__extends || function (d, b) {
+var __extends = this.__extends || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
     __.prototype = b.prototype;
@@ -102,6 +102,36 @@ var Fortress = (function (_super) {
         });
     };
 
+    Fortress.prototype.get_explicit_query_properties = function (query) {
+        if (!query.properties)
+            return [];
+
+        var result = [];
+        for (var i in query.properties) {
+            var property = query.properties;
+            result.push(property);
+        }
+
+        return result;
+    };
+
+    Fortress.prototype.get_query_events = function (query) {
+        var result = [
+            'all',
+            '*.query',
+            query.trellis.name + '.query',
+            query.trellis.name + '.*'
+        ];
+
+        return result;
+    };
+
+    Fortress.prototype.get_query_and_subqueries = function (user, query) {
+        var result = [this.atomic_access(user, query, this.get_query_events(query))];
+
+        var properties = this.get_explicit_query_properties(query);
+    };
+
     Fortress.prototype.query_access = function (user, query) {
         var _this = this;
         console.log('query_access');
@@ -110,12 +140,19 @@ var Fortress = (function (_super) {
             throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".');
 
         return this.get_roles(user).then(function () {
-            return _this.atomic_access(user, query, [
-                'all',
-                '*.query',
-                query.trellis.name + '.query',
-                query.trellis.name + '.*'
-            ]);
+            return when.all(_this.get_query_and_subqueries(user, query)).then(function (results) {
+                for (var i = 0; i < results.length; ++i) {
+                    if (!results[i].access)
+                        return {
+                            gate: null,
+                            access: false
+                        };
+                }
+                return {
+                    gate: null,
+                    access: true
+                };
+            });
         });
     };
 
@@ -306,4 +343,3 @@ else
 })(Fortress || (Fortress = {}));
 require('source-map-support').install();
 //# sourceMappingURL=fortress.js.map
-module.exports = Fortress

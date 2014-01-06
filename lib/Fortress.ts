@@ -103,20 +103,58 @@ class Fortress extends Vineyard.Bulb {
     )
   }
 
+  get_explicit_query_properties(query:Ground.Query):any[] {
+    if (!query.properties)
+      return []
+
+    var result = []
+    for (var i in query.properties) {
+      var property = query.properties
+      result.push(property)
+    }
+
+    return result
+  }
+
+  get_query_events(query:Ground.Query):any[] {
+    var result = [
+      'all',
+      '*.query',
+      query.trellis.name + '.query',
+      query.trellis.name + '.*'
+    ]
+
+    return result
+  }
+
+  private get_query_and_subqueries(user:Vineyard.IUser, query:Ground.Query):Promise {
+    var result = [ this.atomic_access(user, query, this.get_query_events(query)) ]
+
+    var properties = this.get_explicit_query_properties(query)
+  }
+
   query_access(user:Vineyard.IUser, query:Ground.Query):Promise {
     console.log('query_access')
 
     if (typeof user !== 'object')
       throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
 
-    return this.get_roles(user)
+    return this.get_roles(user) // Ensure user object has its roles loaded.
       .then(()=>
-        this.atomic_access(user, query, [
-          'all',
-          '*.query',
-          query.trellis.name + '.query',
-          query.trellis.name + '.*'
-        ])
+        when.all(this.get_query_and_subqueries(user, query))
+          .then((results)=> {
+            for (var i = 0; i < results.length; ++i) {
+              if (!results[i].access)
+                return {
+                  gate: null,
+                  access: false
+                }
+            }
+            return {
+              gate: null,
+              access: true
+            }
+          })
     )
   }
 
