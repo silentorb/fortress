@@ -104,6 +104,8 @@ class Fortress extends Vineyard.Bulb {
   }
 
   query_access(user:Vineyard.IUser, query:Ground.Query):Promise {
+    console.log('query_access')
+
     if (typeof user !== 'object')
       throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
 
@@ -166,7 +168,9 @@ class Fortress extends Vineyard.Bulb {
     }
 
     next(list[0])
-      .then(iteration)
+      .done(iteration,
+        (error)=> { throw new Error(error) }
+      )
 
     return def.promise
   }

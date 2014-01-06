@@ -104,6 +104,8 @@ var Fortress = (function (_super) {
 
     Fortress.prototype.query_access = function (user, query) {
         var _this = this;
+        console.log('query_access');
+
         if (typeof user !== 'object')
             throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".');
 
@@ -159,7 +161,9 @@ var Fortress = (function (_super) {
             return next(list[index]).then(iteration);
         };
 
-        next(list[0]).then(iteration);
+        next(list[0]).done(iteration, function (error) {
+            throw new Error(error);
+        });
 
         return def.promise;
     };
