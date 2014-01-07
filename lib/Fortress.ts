@@ -131,6 +131,7 @@ class Fortress extends Vineyard.Bulb {
     var result = [ this.atomic_access(user, query, this.get_query_events(query)) ]
 
     var properties = this.get_explicit_query_properties(query)
+    return when.all(result)
   }
 
   query_access(user:Vineyard.IUser, query:Ground.Query):Promise {

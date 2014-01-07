@@ -1,4 +1,4 @@
-var __extends = this.__extends || function (d, b) {
+var MetaHub = require('metahub');var Ground = require('ground');var Vineyard = require('vineyard');var when = require('when');var __extends = this.__extends || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
     __.prototype = b.prototype;
@@ -130,6 +130,7 @@ var Fortress = (function (_super) {
         var result = [this.atomic_access(user, query, this.get_query_events(query))];
 
         var properties = this.get_explicit_query_properties(query);
+        return when.all(result);
     };
 
     Fortress.prototype.query_access = function (user, query) {
@@ -343,3 +344,4 @@ else
 })(Fortress || (Fortress = {}));
 require('source-map-support').install();
 //# sourceMappingURL=fortress.js.map
+module.exports = Fortress
