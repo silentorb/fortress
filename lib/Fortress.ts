@@ -76,13 +76,18 @@ class Fortress extends Vineyard.Bulb {
 
   atomic_access(user:Vineyard.IUser, resource, actions:string[] = []) {
     var gates = this.select_gates(user, actions)
+    var details = {
+      trellis: resource.trellis.name,
+      seed: resource.seed
+    }
 
     var promises = gates.map((gate)=>
         gate.check(user, resource)
           .then((access) => {
             return {
               gate: gate,
-              access: access
+              access: access,
+              resource: details
             }
           }
         )
@@ -97,7 +102,8 @@ class Fortress extends Vineyard.Bulb {
         }
         return {
           gate: null,
-          access: false
+          access: false,
+          resource: details
         }
       }
     )
@@ -135,7 +141,6 @@ class Fortress extends Vineyard.Bulb {
   }
 
   query_access(user:Vineyard.IUser, query:Ground.Query):Promise {
-    console.log('query_access')
 
     if (typeof user !== 'object')
       throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
@@ -177,11 +182,9 @@ class Fortress extends Vineyard.Bulb {
         return when.all(promises)
           .then((results)=> {
             for (var i = 0; i < results.length; ++i) {
-              if (!results[i].access)
-                return {
-                  gate: null,
-                  access: false
-                }
+              var result = results[i]
+              if (!result.access)
+                return result
             }
             return {
               gate: null,
@@ -196,19 +199,24 @@ class Fortress extends Vineyard.Bulb {
     var def = when.defer()
     var index = 0
     var iteration = (result)=> {
-      if (check(result))
-        return def.resolve(result)
+      if (check(result)) {
+        def.resolve(result)
+        return
+      }
 
-      if (++index >= list.length)
-        return def.reject(result)
+      if (++index >= list.length) {
+        def.reject(result)
+        return
+      }
 
       return next(list[index])
         .then(iteration)
     }
 
     next(list[0])
-      .done(iteration,
-        (error)=> { throw new Error(error) }
+      .done(iteration
+//      ,
+//        (error)=> { def.reject(error) }
       )
 
     return def.promise
@@ -255,7 +263,7 @@ module Fortress {
         throw new Error('No records were found to check ownership.')
       for (var i = 0; i < rows.length; ++i) {
         var row = rows[i]
-        if (row['user'] != user.id)
+        if (row['author'] != user.id)
           return false
       }
       return true
@@ -282,7 +290,7 @@ module Fortress {
       else {
         var id = resource.seed[resource.trellis.primary_key]
 
-        if (!id) // No id means this must be a creation.
+        if (!id) // No id means this must be a creation.  This case will always allow access.
           return when.resolve(true)
 
         var query = this.fortress.ground.create_query(resource.trellis.name)

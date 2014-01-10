@@ -80,12 +80,17 @@ var Fortress = (function (_super) {
     Fortress.prototype.atomic_access = function (user, resource, actions) {
         if (typeof actions === "undefined") { actions = []; }
         var gates = this.select_gates(user, actions);
+        var details = {
+            trellis: resource.trellis.name,
+            seed: resource.seed
+        };
 
         var promises = gates.map(function (gate) {
             return gate.check(user, resource).then(function (access) {
                 return {
                     gate: gate,
-                    access: access
+                    access: access,
+                    resource: details
                 };
             });
         });
@@ -97,7 +102,8 @@ var Fortress = (function (_super) {
             }
             return {
                 gate: null,
-                access: false
+                access: false,
+                resource: details
             };
         });
     };
@@ -135,8 +141,6 @@ var Fortress = (function (_super) {
 
     Fortress.prototype.query_access = function (user, query) {
         var _this = this;
-        console.log('query_access');
-
         if (typeof user !== 'object')
             throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".');
 
@@ -172,11 +176,9 @@ var Fortress = (function (_super) {
 
             return when.all(promises).then(function (results) {
                 for (var i = 0; i < results.length; ++i) {
-                    if (!results[i].access)
-                        return {
-                            gate: null,
-                            access: false
-                        };
+                    var result = results[i];
+                    if (!result.access)
+                        return result;
                 }
                 return {
                     gate: null,
@@ -190,18 +192,20 @@ var Fortress = (function (_super) {
         var def = when.defer();
         var index = 0;
         var iteration = function (result) {
-            if (check(result))
-                return def.resolve(result);
+            if (check(result)) {
+                def.resolve(result);
+                return;
+            }
 
-            if (++index >= list.length)
-                return def.reject(result);
+            if (++index >= list.length) {
+                def.reject(result);
+                return;
+            }
 
             return next(list[index]).then(iteration);
         };
 
-        next(list[0]).done(iteration, function (error) {
-            throw new Error(error);
-        });
+        next(list[0]).done(iteration);
 
         return def.promise;
     };
@@ -252,7 +256,7 @@ var Fortress;
                 throw new Error('No records were found to check ownership.');
             for (var i = 0; i < rows.length; ++i) {
                 var row = rows[i];
-                if (row['user'] != user.id)
+                if (row['author'] != user.id)
                     return false;
             }
             return true;
@@ -319,7 +323,7 @@ var Fortress;
 
             if (path[0] == 'user')
                 args = [user.id, id];
-else
+            else
                 args = [id, user.id];
 
             return Ground.Query.query_path(path, args, this.fortress.ground);
