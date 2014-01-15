@@ -3,7 +3,6 @@
 /// <reference path="../defs/metahub.d.ts"/>
 /// <reference path="../defs/ground.d.ts"/>
 /// <reference path="../defs/vineyard.d.ts"/>
-/// <reference path="../defs/node.d.ts"/>
 
 //var MetaHub = require('metahub')
 var fs = require('fs')
@@ -11,6 +10,7 @@ var fs = require('fs')
 class Fortress extends Vineyard.Bulb {
   gate_types = {}
   gates:Fortress.Gate[] = []
+  log:boolean = false
 
   add_gate(source:Fortress.Gate_Source) {
     var type = this.gate_types[source.type]
@@ -26,8 +26,9 @@ class Fortress extends Vineyard.Bulb {
       return when.resolve(user.roles)
 
     var query = this.ground.create_query('role')
-    query.add_property_filter('users', user.id)
-    return query.run_core()
+    query.add_filter('users', user.id)
+    var runner = query.create_runner()
+    return runner.run_core()
       .then((roles)=> user.roles = roles)
   }
 
@@ -109,7 +110,7 @@ class Fortress extends Vineyard.Bulb {
     )
   }
 
-  get_explicit_query_properties(query:Ground.Query):any[] {
+  get_explicit_query_properties(query:Ground.Query_Builder):any[] {
     if (!query.properties)
       return []
 
@@ -122,7 +123,7 @@ class Fortress extends Vineyard.Bulb {
     return result
   }
 
-  get_query_events(query:Ground.Query):any[] {
+  get_query_events(query:Ground.Query_Builder):any[] {
     var result = [
       'all',
       '*.query',
@@ -133,66 +134,61 @@ class Fortress extends Vineyard.Bulb {
     return result
   }
 
-  private get_query_and_subqueries(user:Vineyard.IUser, query:Ground.Query):Promise {
+  private get_query_and_subqueries(user:Vineyard.IUser, query:Ground.Query_Builder):Promise {
     var result = [ this.atomic_access(user, query, this.get_query_events(query)) ]
 
     var properties = this.get_explicit_query_properties(query)
     return when.all(result)
   }
 
-  query_access(user:Vineyard.IUser, query:Ground.Query):Promise {
+  query_access(user:Vineyard.IUser, query:Ground.Query_Builder):Promise {
+    if (typeof user !== 'object')
+      throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
+
+    return when.all(this.get_query_and_subqueries(user, query))
+      .then((results)=> {
+        for (var i = 0; i < results.length; ++i) {
+          var result = results[i]
+          if (!result.access) {
+            if (this.log)
+              console.log('Query failed: ', result)
+
+            return result
+          }
+        }
+        return {
+          gate: null,
+          access: true
+        }
+      })
+  }
+
+  update_access(user:Vineyard.IUser, updates):Promise {
+    if (!MetaHub.is_array(updates))
+      updates = [ updates ]
 
     if (typeof user !== 'object')
       throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
 
-    return this.get_roles(user) // Ensure user object has its roles loaded.
-      .then(()=>
-        when.all(this.get_query_and_subqueries(user, query))
-          .then((results)=> {
-            for (var i = 0; i < results.length; ++i) {
-              if (!results[i].access)
-                return {
-                  gate: null,
-                  access: false
-                }
-            }
-            return {
-              gate: null,
-              access: true
-            }
-          })
+    var promises = updates.map((update)=> {
+      return this.atomic_access(user, update, ['all', update.get_access_name(), '*.update', update.trellis.name + '.*'])
+    })
+
+    // An unoptimized poor-man's method of checking.  In the long run the processing should
+    // be sequential instead of processing everything at once.
+    return when.all(promises)
+      .then((results)=> {
+        for (var i = 0; i < results.length; ++i) {
+          var result = results[i]
+          if (!result.access)
+            return result
+        }
+        return {
+          gate: null,
+          access: true
+        }
+      }
     )
-  }
-
-  update_access(user:Vineyard.IUser, updates):Promise {
-    return this.get_roles(user)
-      .then(()=> {
-        if (!MetaHub.is_array(updates))
-          updates = [ updates ]
-
-        if (typeof user !== 'object')
-          throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
-
-        var promises = updates.map((update)=> {
-          return this.atomic_access(user, update, ['all', update.get_access_name(), '*.update', update.trellis.name + '.*'])
-        })
-
-        // An unoptimized poor-man's method of checking.  In the long run the processing should
-        // be sequential instead of processing everything at once.
-        return when.all(promises)
-          .then((results)=> {
-            for (var i = 0; i < results.length; ++i) {
-              var result = results[i]
-              if (!result.access)
-                return result
-            }
-            return {
-              gate: null,
-              access: true
-            }
-          }
-        )
-      })
   }
 
   static sequential_check(list:any[], next:(arg)=>Promise, check):Promise {
@@ -270,7 +266,7 @@ module Fortress {
     }
 
     private static is_open_query(query):boolean {
-      var filters = query.property_filters.filter(
+      var filters = query.filters.filter(
         (filter)=> filter.property == query.trellis.primary_key
       )
       return filters.length == 0
@@ -295,15 +291,16 @@ module Fortress {
 
         var query = this.fortress.ground.create_query(resource.trellis.name)
         query.add_key_filter(id)
-        return query.run_core()
+        var runner = query.create_runner()
+        return runner.run_core()
           // No rows should result in 'true' because that means this is a creation,
           // and the new creation will definitely be owned by the current user
           .then((rows)=> rows.length == 0 || this.check_rows_ownership(user, rows))
       }
     }
 
-    limited_to_user(query:Ground.Query, user:Vineyard.IUser):boolean {
-      var filters = query.property_filters.filter((filter)=>filter.property == 'user')
+    limited_to_user(query:Ground.Query_Builder, user:Vineyard.IUser):boolean {
+      var filters = query.filters.filter((filter)=> filter.property.name == 'user')
       if (filters.length !== 1)
         return false
 

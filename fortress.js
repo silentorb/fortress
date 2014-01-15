@@ -12,6 +12,7 @@ var Fortress = (function (_super) {
         _super.apply(this, arguments);
         this.gate_types = {};
         this.gates = [];
+        this.log = false;
     }
     Fortress.prototype.add_gate = function (source) {
         var type = this.gate_types[source.type];
@@ -27,8 +28,9 @@ var Fortress = (function (_super) {
             return when.resolve(user.roles);
 
         var query = this.ground.create_query('role');
-        query.add_property_filter('users', user.id);
-        return query.run_core().then(function (roles) {
+        query.add_filter('users', user.id);
+        var runner = query.create_runner();
+        return runner.run_core().then(function (roles) {
             return user.roles = roles;
         });
     };
@@ -144,47 +146,45 @@ var Fortress = (function (_super) {
         if (typeof user !== 'object')
             throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".');
 
-        return this.get_roles(user).then(function () {
-            return when.all(_this.get_query_and_subqueries(user, query)).then(function (results) {
-                for (var i = 0; i < results.length; ++i) {
-                    if (!results[i].access)
-                        return {
-                            gate: null,
-                            access: false
-                        };
+        return when.all(this.get_query_and_subqueries(user, query)).then(function (results) {
+            for (var i = 0; i < results.length; ++i) {
+                var result = results[i];
+                if (!result.access) {
+                    if (_this.log)
+                        console.log('Query failed: ', result);
+
+                    return result;
                 }
-                return {
-                    gate: null,
-                    access: true
-                };
-            });
+            }
+            return {
+                gate: null,
+                access: true
+            };
         });
     };
 
     Fortress.prototype.update_access = function (user, updates) {
         var _this = this;
-        return this.get_roles(user).then(function () {
-            if (!MetaHub.is_array(updates))
-                updates = [updates];
+        if (!MetaHub.is_array(updates))
+            updates = [updates];
 
-            if (typeof user !== 'object')
-                throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".');
+        if (typeof user !== 'object')
+            throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".');
 
-            var promises = updates.map(function (update) {
-                return _this.atomic_access(user, update, ['all', update.get_access_name(), '*.update', update.trellis.name + '.*']);
-            });
+        var promises = updates.map(function (update) {
+            return _this.atomic_access(user, update, ['all', update.get_access_name(), '*.update', update.trellis.name + '.*']);
+        });
 
-            return when.all(promises).then(function (results) {
-                for (var i = 0; i < results.length; ++i) {
-                    var result = results[i];
-                    if (!result.access)
-                        return result;
-                }
-                return {
-                    gate: null,
-                    access: true
-                };
-            });
+        return when.all(promises).then(function (results) {
+            for (var i = 0; i < results.length; ++i) {
+                var result = results[i];
+                if (!result.access)
+                    return result;
+            }
+            return {
+                gate: null,
+                access: true
+            };
         });
     };
 
@@ -263,7 +263,7 @@ var Fortress;
         };
 
         User_Content.is_open_query = function (query) {
-            var filters = query.property_filters.filter(function (filter) {
+            var filters = query.filters.filter(function (filter) {
                 return filter.property == query.trellis.primary_key;
             });
             return filters.length == 0;
@@ -290,15 +290,16 @@ var Fortress;
 
                 var query = this.fortress.ground.create_query(resource.trellis.name);
                 query.add_key_filter(id);
-                return query.run_core().then(function (rows) {
+                var runner = query.create_runner();
+                return runner.run_core().then(function (rows) {
                     return rows.length == 0 || _this.check_rows_ownership(user, rows);
                 });
             }
         };
 
         User_Content.prototype.limited_to_user = function (query, user) {
-            var filters = query.property_filters.filter(function (filter) {
-                return filter.property == 'user';
+            var filters = query.filters.filter(function (filter) {
+                return filter.property.name == 'user';
             });
             if (filters.length !== 1)
                 return false;
