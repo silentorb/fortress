@@ -29,6 +29,7 @@ declare module Fortress {
         public fortress: Fortress;
         public roles: string[];
         public on: string[];
+        public name: string;
         constructor(fortress: Fortress, source: any);
         public check(user: Vineyard.IUser, resource: any, info?: any): Promise;
     }

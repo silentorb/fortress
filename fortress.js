@@ -20,6 +20,7 @@ var Fortress = (function (_super) {
             throw new Error('Could not find gate: "' + source.type + '".');
 
         var gate = new type(this, source);
+        gate.name = source.type;
         this.gates.push(gate);
     };
 
@@ -82,6 +83,13 @@ var Fortress = (function (_super) {
     Fortress.prototype.atomic_access = function (user, resource, actions) {
         if (typeof actions === "undefined") { actions = []; }
         var gates = this.select_gates(user, actions);
+        if (this.log) {
+            console.log('access.user', user.name, user.id, user.roles);
+            console.log('access.actions', actions);
+            console.log('access.gates', gates.map(function (x) {
+                return x.name;
+            }));
+        }
         var details = {
             trellis: resource.trellis.name,
             seed: resource.seed
@@ -146,6 +154,9 @@ var Fortress = (function (_super) {
         if (typeof user !== 'object')
             throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".');
 
+        if (!user.roles)
+            throw new Error('User passed to update_access is missing a roles array.');
+
         return when.all(this.get_query_and_subqueries(user, query)).then(function (results) {
             for (var i = 0; i < results.length; ++i) {
                 var result = results[i];
@@ -165,11 +176,14 @@ var Fortress = (function (_super) {
 
     Fortress.prototype.update_access = function (user, updates) {
         var _this = this;
-        if (!MetaHub.is_array(updates))
-            updates = [updates];
-
         if (typeof user !== 'object')
             throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".');
+
+        if (!user.roles)
+            throw new Error('User passed to update_access is missing a roles array.');
+
+        if (!MetaHub.is_array(updates))
+            updates = [updates];
 
         var promises = updates.map(function (update) {
             return _this.atomic_access(user, update, ['all', update.get_access_name(), '*.update', update.trellis.name + '.*']);

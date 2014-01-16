@@ -18,6 +18,7 @@ class Fortress extends Vineyard.Bulb {
       throw new Error('Could not find gate: "' + source.type + '".')
 
     var gate = new type(this, source)
+    gate.name = source.type
     this.gates.push(gate)
   }
 
@@ -77,6 +78,11 @@ class Fortress extends Vineyard.Bulb {
 
   atomic_access(user:Vineyard.IUser, resource, actions:string[] = []) {
     var gates = this.select_gates(user, actions)
+    if (this.log) {
+      console.log('access.user', user.name, user.id, user.roles)
+      console.log('access.actions', actions)
+      console.log('access.gates', gates.map((x)=> x.name))
+    }
     var details = {
       trellis: resource.trellis.name,
       seed: resource.seed
@@ -145,6 +151,9 @@ class Fortress extends Vineyard.Bulb {
     if (typeof user !== 'object')
       throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
 
+    if (!user.roles)
+      throw new Error('User passed to update_access is missing a roles array.')
+
     return when.all(this.get_query_and_subqueries(user, query))
       .then((results)=> {
         for (var i = 0; i < results.length; ++i) {
@@ -164,11 +173,14 @@ class Fortress extends Vineyard.Bulb {
   }
 
   update_access(user:Vineyard.IUser, updates):Promise {
-    if (!MetaHub.is_array(updates))
-      updates = [ updates ]
-
     if (typeof user !== 'object')
       throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
+
+    if (!user.roles)
+      throw new Error('User passed to update_access is missing a roles array.')
+
+    if (!MetaHub.is_array(updates))
+      updates = [ updates ]
 
     var promises = updates.map((update)=> {
       return this.atomic_access(user, update, ['all', update.get_access_name(), '*.update', update.trellis.name + '.*'])
@@ -230,6 +242,7 @@ module Fortress {
     fortress:Fortress
     roles:string[]
     on:string[]
+    name:string
 
     constructor(fortress:Fortress, source) {
       super()
