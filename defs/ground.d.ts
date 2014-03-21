@@ -5,9 +5,10 @@
 declare var when: any;
 declare module Ground {
     class Database {
-        public settings: {};
+        public settings: any;
         public database: string;
         public log_queries: boolean;
+        public pool: any;
         constructor(settings: {}, database: string);
         public add_table_to_database(table: Ground.Table, ground: Ground.Core): Promise;
         public add_non_trellis_tables_to_database(tables: Ground.Table[], ground: Ground.Core): Promise;
@@ -82,6 +83,7 @@ declare module Ground {
         expansions?: string[];
         properties?: any[];
         subqueries?: any;
+        pager?: any;
     }
     interface External_Query_Source extends Property_Query_Source {
         trellis: string;
@@ -114,7 +116,6 @@ declare module Ground {
         public run_stack: any;
         public property_filters: Query_Filter_Source[];
         static operators: string[];
-        public each: any;
         private links;
         constructor(trellis: Ground.Trellis, base_path?: string);
         public add_arguments(args: any): void;
@@ -192,11 +193,18 @@ declare module Ground {
 }
 declare module Ground {
     class Delete implements Ground.IUpdate {
+        public ground: Ground.Core;
         public trellis: Ground.Trellis;
-        public seed: Ground.ISeed;
-        constructor(trellis: Ground.Trellis, seed: Ground.ISeed);
+        public seed: any;
+        public max_depth: number;
+        constructor(ground: Ground.Core, trellis: Ground.Trellis, seed: Ground.ISeed);
         public get_access_name(): string;
-        public run(): Promise;
+        private delete_child(link, id, depth?);
+        private delete_children(trellis, id, depth?);
+        public delete_record(trellis: Ground.Trellis, id: any): Promise;
+        private get_child_links(trellis);
+        public run(depth?: number): Promise;
+        private run_delete(trellis, seed, depth?);
     }
 }
 declare module Ground {
@@ -290,7 +298,7 @@ declare module Ground {
         public create_sql_from_trellis(trellis: Ground.Trellis): string;
         private get_primary_keys(trellis);
         static format_value(value: any): any;
-        static generate_index_sql(name: string, index: any): string;
+        static generate_index_sql(index: any): string;
         public load_from_schema(source: any): void;
     }
 }
@@ -338,17 +346,19 @@ declare module Ground {
         public name: string;
         public parent: Ground.Trellis;
         public type: string;
-        public is_readonly: boolean;
         public insert: string;
         public other_property: string;
-        public default: any;
+        public "default": any;
         public other_trellis: Ground.Trellis;
         public other_trellis_name: string;
         public is_private: boolean;
+        public is_readonly: boolean;
         public is_virtual: boolean;
         public is_composite_sub: boolean;
+        public is_unique: boolean;
         public composite_properties: any[];
         public access: string;
+        public allow_null: boolean;
         constructor(name: string, source: Ground.IProperty_Source, trellis: Ground.Trellis);
         public initialize_composite_reference(other_trellis: Ground.Trellis): void;
         public fullname(): string;
@@ -398,12 +408,18 @@ declare module Ground {
         public include_links: boolean;
         public transforms: Query_Transform[];
         public subqueries: {};
+        static operators: {
+            '=': any;
+            'LIKE': (result: any, filter: any, property: any, data: any) => void;
+            '!=': any;
+        };
         public filters: Query_Filter[];
         constructor(trellis: Ground.Trellis);
+        static add_operator(symbol: string, action: any): void;
         public add_filter(property_name: string, value?: any, operator?: string): void;
         public add_key_filter(value: any): void;
         public add_sort(sort: Query_Sort): void;
-        public add_subquery(property_name: string, source?: Ground.External_Query_Source): Query_Builder;
+        public add_subquery(property_name: string, source?: any): Query_Builder;
         public add_transform_clause(clause: string): void;
         public create_runner(): Ground.Query_Runner;
         static create_join_filter(property: Ground.Property, seed: any): Query_Filter;
@@ -425,6 +441,7 @@ declare module Ground {
         private static process_property_filter(source, filter, ground);
         static process_property_filters(source: Ground.Query_Builder, ground: Ground.Core): Ground.Internal_Query_Source;
         static process_sorts(sorts: Ground.Query_Sort[], trellis: Ground.Trellis): string;
+        static render_pager(pager: Ground.IPager): string;
     }
 }
 declare module Ground {
