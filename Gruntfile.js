@@ -3,7 +3,6 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-ts')
   grunt.loadNpmTasks('grunt-contrib-concat')
   grunt.loadNpmTasks('grunt-contrib-watch')
-  grunt.loadNpmTasks('grunt-contrib-copy')
   grunt.loadNpmTasks('grunt-text-replace')
 
   grunt.initConfig({
@@ -56,14 +55,6 @@ module.exports = function (grunt) {
         ]
       }
     },
-    copy: {
-      "fortress": {
-        files: [
-          { src: 'fortress.d.ts', dest: '../../defs/'}
-//          { src: 'lib/Fortress.js', dest: 'fortress.js'},
-        ]
-      }
-    },
     watch: {
        fortress: {
         files: 'lib/Fortress.ts',
@@ -73,6 +64,6 @@ module.exports = function (grunt) {
   })
 
   grunt.registerTask('default',
-    ['ts:fortress', 'concat', 'replace', 'copy']);
+    ['ts:fortress', 'concat', 'replace']);
 
 }

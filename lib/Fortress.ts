@@ -1,11 +1,12 @@
 //declare function require(name:string):any;
 /// <reference path="references.ts"/>
-/// <reference path="../defs/metahub.d.ts"/>
-/// <reference path="../defs/ground.d.ts"/>
-/// <reference path="../defs/vineyard.d.ts"/>
+/// <reference path="../../metahub/metahub.d.ts"/>
+/// <reference path="../../ground/ground.d.ts"/>
+/// <reference path="../../vineyard/vineyard.d.ts"/>
 
 //var MetaHub = require('metahub')
-var fs = require('fs')
+import fs = require('fs')
+import when = require('when')
 
 class Fortress extends Vineyard.Bulb {
   gate_types = {}
@@ -56,7 +57,7 @@ class Fortress extends Vineyard.Bulb {
     this.gate_types['user_content'] = Fortress.User_Content
     this.gate_types['link'] = Fortress.Link
     var json = fs.readFileSync(this.config.config_path, 'ascii')
-    var config = JSON.parse(json)
+    var config = JSON.parse(json.toString())
 
     for (var i = 0; i < config.gates.length; ++i) {
       this.add_gate(config.gates[i])
