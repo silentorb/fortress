@@ -1,6 +1,6 @@
 {
-  "name": "fortress",
-  "version": "0.0.0",
+  "name": "vineyard-fortress",
+  "version": "0.1.1",
   "description": "Security module for Vineyard",
   "main": "fortress.js",
   "repository": {
@@ -11,7 +11,7 @@
   "license": "MIT",
   "devDependencies": {
     "grunt-ts": "~1.x.x",
-    "grunt-contrib-watch": "~0.6.x",
+    "grunt-contrib-watch": "~0.6.1",
     "grunt-text-replace": "~0.3.x",
     "grunt": "~0.4.x",
     "grunt-contrib-concat": "~0.4.x"

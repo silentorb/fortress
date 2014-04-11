@@ -1,12 +1,10 @@
-//declare function require(name:string):any;
-/// <reference path="references.ts"/>
-/// <reference path="../../metahub/metahub.d.ts"/>
-/// <reference path="../../ground/ground.d.ts"/>
-/// <reference path="../../vineyard/vineyard.d.ts"/>
+/// <reference path="../vineyard/vineyard.d.ts"/>
 
-//var MetaHub = require('metahub')
 import fs = require('fs')
 import when = require('when')
+import Vineyard = require('vineyard')
+import MetaHub = require('vineyard-metahub')
+import Ground = require('vineyard-ground')
 
 class Fortress extends Vineyard.Bulb {
   gate_types = {}
@@ -359,3 +357,5 @@ module Fortress {
   }
 
 }
+export = Fortress
+require('source-map-support').install();

@@ -8,8 +8,8 @@ module.exports = function (grunt) {
   grunt.initConfig({
     ts: {
       fortress: {                                 // a particular target
-        src: ["lib/export.ts"],        // The source typescript files, http://gruntjs.com/configuring-tasks#files
-        out: 'fortress.js',                // If specified, generate an out.js file which is the merged js file
+        src: ["fortress.ts"],        // The source typescript files, http://gruntjs.com/configuring-tasks#files
+//        out: 'fortress.js',                // If specified, generate an out.js file which is the merged js file
         options: {                    // use to override the default options, http://gruntjs.com/configuring-tasks#options
           target: 'es5',            // 'es3' (default) | 'es5'
           module: 'commonjs',       // 'amd' (default) | 'commonjs'
@@ -19,51 +19,51 @@ module.exports = function (grunt) {
         }
       }
     },
-    concat: {
-      options: {
-        separator: ''
-      },
-      fortress: {
-        src: [
-          'lib/fortress_header.js',
-          'fortress.js',
-          'lib/fortress_footer.js'
-        ],
-        dest: 'fortress.js'
-      },
-      "fortress-def": {
-        src: [
-          'fortress.d.ts',
-          'lib/fortress_definition_footer'
-        ],
-        dest: 'fortress.d.ts'
-      }
-    },
-    replace: {
-      "fortress-def": {
-        src: ["fortress.d.ts"],
-        overwrite: true,
-        replacements: [
-          {
-            from: 'defs/',
-            to: ""
-          },
-          {
-            from: 'export = Fortress;',
-            to: ""
-          }
-        ]
-      }
-    },
+//    concat: {
+//      options: {
+//        separator: ''
+//      },
+//      fortress: {
+//        src: [
+//          'lib/fortress_header.js',
+//          'fortress.js',
+//          'lib/fortress_footer.js'
+//        ],
+//        dest: 'fortress.js'
+//      },
+//      "fortress-def": {
+//        src: [
+//          'fortress.d.ts',
+//          'lib/fortress_definition_footer'
+//        ],
+//        dest: 'fortress.d.ts'
+//      }
+//    },
+//    replace: {
+//      "fortress-def": {
+//        src: ["fortress.d.ts"],
+//        overwrite: true,
+//        replacements: [
+//          {
+//            from: 'defs/',
+//            to: ""
+//          },
+//          {
+//            from: 'export = Fortress;',
+//            to: ""
+//          }
+//        ]
+//      }
+//    },
     watch: {
        fortress: {
-        files: 'lib/Fortress.ts',
+        files: 'fortress.ts',
         tasks: ['default']
       }
     }
   })
 
   grunt.registerTask('default',
-    ['ts:fortress', 'concat', 'replace']);
+    ['ts:fortress']);
 
 }

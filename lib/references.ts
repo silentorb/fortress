@@ -1,4 +1,4 @@
 
-/// <reference path="../../metahub/metahub.d.ts"/>
-/// <reference path="../../ground/ground.d.ts"/>
+/// <reference path="../../vineyard-metahub/metahub.d.ts"/>
+/// <reference path="../../vineyard-ground/ground.d.ts"/>
 
