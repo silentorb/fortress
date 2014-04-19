@@ -282,7 +282,7 @@ var Fortress;
 
         User_Content.is_open_query = function (query) {
             var filters = query.filters.filter(function (filter) {
-                return filter.property == query.trellis.primary_key;
+                return filter.path == query.trellis.primary_key;
             });
             return filters.length == 0;
         };
@@ -317,7 +317,7 @@ var Fortress;
 
         User_Content.prototype.limited_to_user = function (query, user) {
             var filters = query.filters.filter(function (filter) {
-                return filter.property.name == 'user';
+                return filter.path == 'user';
             });
             if (filters.length !== 1)
                 return false;

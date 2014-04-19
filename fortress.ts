@@ -279,7 +279,7 @@ module Fortress {
 
     private static is_open_query(query):boolean {
       var filters = query.filters.filter(
-        (filter)=> filter.property == query.trellis.primary_key
+        (filter)=> filter.path == query.trellis.primary_key
       )
       return filters.length == 0
     }
@@ -312,7 +312,7 @@ module Fortress {
     }
 
     limited_to_user(query:Ground.Query_Builder, user:Vineyard.IUser):boolean {
-      var filters = query.filters.filter((filter)=> filter.property.name == 'user')
+      var filters = query.filters.filter((filter)=> filter.path == 'user')
       if (filters.length !== 1)
         return false
 
