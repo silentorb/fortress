@@ -1,6 +1,6 @@
 {
   "name": "vineyard-fortress",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Security module for Vineyard",
   "main": "fortress.js",
   "repository": {
