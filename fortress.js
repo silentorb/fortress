@@ -297,7 +297,7 @@ var Fortress;
                 if (User_Content.is_open_query(resource))
                     return when.resolve(true);
 
-                return resource.run_core().then(function (rows) {
+                return resource.run().then(function (rows) {
                     return _this.check_rows_ownership(user, rows);
                 });
             } else {

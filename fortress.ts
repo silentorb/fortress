@@ -292,7 +292,7 @@ module Fortress {
         if (User_Content.is_open_query(resource))
           return when.resolve(true)
 
-        return resource.run_core()
+        return resource.run()
           .then((rows)=> this.check_rows_ownership(user, rows))
       }
       else {
