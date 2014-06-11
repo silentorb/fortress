@@ -24,20 +24,11 @@ var Fortress = (function (_super) {
             throw new Error('Could not find gate: "' + source.type + '".');
 
         var gate = new type(this, source);
-        gate.name = source.type;
         this.gates.push(gate);
     };
 
     Fortress.prototype.get_roles = function (user) {
-        if (user.roles)
-            return when.resolve(user.roles);
-
-        var query = this.ground.create_query('role');
-        query.add_filter('users', user.id);
-        var runner = query.create_runner();
-        return runner.run_core().then(function (roles) {
-            return user.roles = roles;
-        });
+        return this.ground.trellises['user'].assure_properties(user, ['id', 'name', 'roles']);
     };
 
     Fortress.prototype.user_has_role = function (user, role_name) {
@@ -59,7 +50,7 @@ var Fortress = (function (_super) {
     };
 
     Fortress.prototype.grow = function () {
-        this.gate_types['admin'] = Fortress.Admin;
+        this.gate_types['global'] = Fortress.Global;
         this.gate_types['user_content'] = Fortress.User_Content;
         this.gate_types['link'] = Fortress.Link;
         var json = fs.readFileSync(this.config.config_path, 'ascii');
@@ -70,116 +61,32 @@ var Fortress = (function (_super) {
         }
     };
 
-    Fortress.prototype.select_gates = function (user, patterns) {
-        var _this = this;
-        return this.gates.filter(function (gate) {
-            if (_this.user_has_any_role(user, gate.roles))
-                for (var a = 0; a < patterns.length; ++a) {
-                    for (var b = 0; b < gate.on.length; ++b) {
-                        if (patterns[a] == gate.on[b])
-                            return true;
-                    }
-                }
-            return false;
-        });
+    Fortress.prototype.prepare_query_test = function (query) {
+        var test = new Fortress.Access_Test();
+        test.add_trellis(query.trellis, ['query']);
+
+        test.fill_implicit();
+        return test;
     };
 
-    Fortress.prototype.atomic_access = function (user, resource, actions) {
-        if (typeof actions === "undefined") { actions = []; }
-        var gates = this.select_gates(user, actions);
-        if (this.log) {
-            console.log('access.user', user.name, user.id, user.roles);
-            console.log('access.actions', actions);
-            console.log('access.gates', gates.map(function (x) {
-                return x.name;
-            }));
-        }
-        var details = {
-            trellis: resource.trellis.name,
-            seed: resource.seed
-        };
-
-        var promises = gates.map(function (gate) {
-            return gate.check(user, resource).then(function (access) {
-                return {
-                    gate: gate,
-                    access: access,
-                    resource: details
-                };
-            });
-        });
-
-        return when.all(promises).then(function (results) {
-            for (var i = 0; i < results.length; ++i) {
-                if (results[i].access)
-                    return results[i];
-            }
-            return {
-                gate: null,
-                access: false,
-                resource: details
-            };
-        });
-    };
-
-    Fortress.prototype.get_explicit_query_properties = function (query) {
-        if (!query.properties)
-            return [];
-
-        var result = [];
-        for (var i in query.properties) {
-            var property = query.properties;
-            result.push(property);
-        }
-
-        return result;
-    };
-
-    Fortress.prototype.get_query_events = function (query) {
-        var result = [
-            'all',
-            '*.query',
-            query.trellis.name + '.query',
-            query.trellis.name + '.*'
-        ];
-
-        return result;
-    };
-
-    Fortress.prototype.get_query_and_subqueries = function (user, query) {
-        var result = [this.atomic_access(user, query, this.get_query_events(query))];
-
-        var properties = this.get_explicit_query_properties(query);
-        return when.all(result);
+    Fortress.prototype.prepare_update_test = function (user, query) {
+        return null;
     };
 
     Fortress.prototype.query_access = function (user, query) {
-        var _this = this;
         if (typeof user !== 'object')
             throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".');
 
         if (!user.roles)
             throw new Error('User passed to update_access is missing a roles array.');
 
-        return when.all(this.get_query_and_subqueries(user, query)).then(function (results) {
-            for (var i = 0; i < results.length; ++i) {
-                var result = results[i];
-                if (!result.access) {
-                    if (_this.log)
-                        console.log('Query failed: ', result);
+        var test = this.prepare_query_test(query);
 
-                    return result;
-                }
-            }
-            return {
-                gate: null,
-                access: true
-            };
-        });
+        var result = this.run(test);
+        return when.resolve(result);
     };
 
     Fortress.prototype.update_access = function (user, updates) {
-        var _this = this;
         if (typeof user !== 'object')
             throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".');
 
@@ -189,80 +96,127 @@ var Fortress = (function (_super) {
         if (!MetaHub.is_array(updates))
             updates = [updates];
 
-        var promises = updates.map(function (update) {
-            return _this.atomic_access(user, update, ['all', update.get_access_name(), '*.update', update.trellis.name + '.*']);
-        });
-
-        return when.all(promises).then(function (results) {
-            for (var i = 0; i < results.length; ++i) {
-                var result = results[i];
-                if (!result.access)
-                    return result;
-            }
-            return {
-                gate: null,
-                access: true
-            };
-        });
+        return when.resolve(new Fortress.Result());
     };
 
-    Fortress.sequential_check = function (list, next, check) {
-        var def = when.defer();
-        var index = 0;
-        var iteration = function (result) {
-            if (check(result)) {
-                def.resolve(result);
-                return;
-            }
+    Fortress.prototype.run = function (test) {
+        var result = new Fortress.Result();
 
-            if (++index >= list.length) {
-                def.reject(result);
-                return;
-            }
-
-            return next(list[index]).then(iteration);
-        };
-
-        next(list[0]).done(iteration);
-
-        return def.promise;
+        return result;
     };
     return Fortress;
 })(Vineyard.Bulb);
 
 var Fortress;
 (function (Fortress) {
+    var Resource = (function () {
+        function Resource() {
+        }
+        return Resource;
+    })();
+    Fortress.Resource = Resource;
+
     var Gate = (function (_super) {
         __extends(Gate, _super);
         function Gate(fortress, source) {
             _super.call(this);
-            this.fortress = fortress;
-            this.on = source.on;
             if (!source.roles || source.roles.length == 0)
                 throw new Error('Each gate requires at least one role.');
 
+            this.fortress = fortress;
+            this.name = source.type;
             this.roles = source.roles;
+            this.actions = source.actions;
+            this.resources = source.resources;
         }
         Gate.prototype.check = function (user, resource, info) {
             if (typeof info === "undefined") { info = null; }
-            return when.resolve(false);
+            return false;
         };
         return Gate;
     })(MetaHub.Meta_Object);
     Fortress.Gate = Gate;
 
-    var Admin = (function (_super) {
-        __extends(Admin, _super);
-        function Admin() {
+    var Global = (function (_super) {
+        __extends(Global, _super);
+        function Global() {
             _super.apply(this, arguments);
         }
-        Admin.prototype.check = function (user, resource, info) {
+        Global.prototype.check = function (user, resource, info) {
             if (typeof info === "undefined") { info = null; }
-            return when.resolve(true);
+            return true;
         };
-        return Admin;
+        return Global;
     })(Gate);
-    Fortress.Admin = Admin;
+    Fortress.Global = Global;
+
+    var Property_Condition = (function () {
+        function Property_Condition(property, actions) {
+            this.implicit = false;
+            this.property = property;
+            this.actions = actions;
+        }
+        Property_Condition.prototype.get_path = function () {
+            return this.property.fullname();
+        };
+        return Property_Condition;
+    })();
+    Fortress.Property_Condition = Property_Condition;
+
+    var Trellis_Condition = (function () {
+        function Trellis_Condition(trellis) {
+            this.actions = [];
+            this.trellis = trellis;
+        }
+        Trellis_Condition.prototype.fill_implicit = function () {
+            var _this = this;
+            if (!this.properties) {
+                var properties = this.trellis.get_all_properties();
+                this.properties = MetaHub.map(properties, function (p) {
+                    return new Property_Condition(p, _this.actions);
+                });
+            }
+        };
+
+        Trellis_Condition.prototype.get_path = function () {
+            return this.trellis.name;
+        };
+        return Trellis_Condition;
+    })();
+    Fortress.Trellis_Condition = Trellis_Condition;
+
+    var Access_Test = (function () {
+        function Access_Test() {
+            this.trellises = {};
+        }
+        Access_Test.prototype.add_trellis = function (trellis, actions) {
+            if (!this.trellises[trellis.name]) {
+                this.trellises[trellis.name] = new Trellis_Condition(trellis);
+            }
+            var entry = this.trellises[trellis.name];
+
+            for (var i in actions) {
+                var action = actions[i];
+                if (entry.actions.indexOf(action) === -1)
+                    entry.actions.push(action);
+            }
+        };
+
+        Access_Test.prototype.fill_implicit = function () {
+            for (var i in this.trellises) {
+                this.trellises[i].fill_implicit();
+            }
+        };
+        return Access_Test;
+    })();
+    Fortress.Access_Test = Access_Test;
+
+    var Prerequisite = (function () {
+        function Prerequisite() {
+        }
+        return Prerequisite;
+    })();
+    Fortress.Prerequisite = Prerequisite;
 
     var User_Content = (function (_super) {
         __extends(User_Content, _super);
@@ -285,34 +239,6 @@ var Fortress;
                 return filter.path == query.trellis.primary_key;
             });
             return filters.length == 0;
-        };
-
-        User_Content.prototype.check = function (user, resource, info) {
-            if (typeof info === "undefined") { info = null; }
-            var _this = this;
-            if (resource.type == 'query') {
-                if (this.limited_to_user(resource, user))
-                    return when.resolve(true);
-
-                if (User_Content.is_open_query(resource))
-                    return when.resolve(true);
-
-                return resource.run().then(function (rows) {
-                    return _this.check_rows_ownership(user, rows);
-                });
-            } else {
-                var id = resource.seed[resource.trellis.primary_key];
-
-                if (!id)
-                    return when.resolve(true);
-
-                var query = this.fortress.ground.create_query(resource.trellis.name);
-                query.add_key_filter(id);
-                var runner = query.create_runner();
-                return runner.run_core().then(function (rows) {
-                    return rows.length == 0 || _this.check_rows_ownership(user, rows);
-                });
-            }
         };
 
         User_Content.prototype.limited_to_user = function (query, user) {
@@ -350,20 +276,31 @@ var Fortress;
 
         Link.prototype.check = function (user, resource, info) {
             if (typeof info === "undefined") { info = null; }
-            var _this = this;
-            return Fortress.sequential_check(this.paths, function (path) {
-                return _this.check_path(path, user, resource);
-            }, function (result) {
-                return result && result.total > 0;
-            }).then(function (result) {
-                return true;
-            }, function (result) {
-                return false;
-            });
+            throw new Error('Not implemented.');
         };
         return Link;
     })(Gate);
     Fortress.Link = Link;
+
+    var Result_Wall = (function () {
+        function Result_Wall(condition) {
+            this.actions = [].concat(condition.actions);
+            this.path = condition.get_path();
+        }
+        Result_Wall.prototype.get_path = function () {
+            return this.path;
+        };
+        return Result_Wall;
+    })();
+    Fortress.Result_Wall = Result_Wall;
+
+    var Result = (function () {
+        function Result() {
+            this.walls = [];
+        }
+        return Result;
+    })();
+    Fortress.Result = Result;
 })(Fortress || (Fortress = {}));
 require('source-map-support').install();
 module.exports = Fortress;
