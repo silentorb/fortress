@@ -7,63 +7,10 @@ import MetaHub = require('vineyard-metahub')
 import Ground = require('vineyard-ground')
 
 class Fortress extends Vineyard.Bulb {
-  gate_types = {}
-  gates:Fortress.Gate[] = []
-  log:boolean = false
-
-  add_gate(source:Fortress.Gate_Source) {
-    var type = this.gate_types[source.type]
-    if (!type)
-      throw new Error('Could not find gate: "' + source.type + '".')
-
-    var gate = new type(this, source)
-    this.gates.push(gate)
-  }
-
-  get_roles(user):Promise {
-    return this.ground.trellises['user'].assure_properties(user, [ 'id', 'name', 'roles' ])
-  }
-
-  user_has_role(user, role_name:string):boolean {
-    for (var i in user.roles) {
-      if (user.roles[i].name == role_name)
-        return true
-    }
-    return false
-  }
-
-  user_has_any_role(user, role_names:string[]):boolean {
-    for (var a in user.roles) {
-      for (var b in role_names) {
-        if (user.roles[a].name == role_names[b])
-          return true
-      }
-    }
-    return false
-  }
+  core:Fortress.Core
 
   grow() {
-    this.gate_types['global'] = Fortress.Global
-    this.gate_types['user_content'] = Fortress.User_Content
-    this.gate_types['link'] = Fortress.Link
-    var json = fs.readFileSync(this.config.config_path, 'ascii')
-    var config = JSON.parse(json.toString())
-
-    for (var i = 0; i < config.gates.length; ++i) {
-      this.add_gate(config.gates[i])
-    }
-  }
-
-  prepare_query_test(query:Ground.Query_Builder):Fortress.Access_Test {
-    var test = new Fortress.Access_Test()
-    test.add_trellis(query.trellis, [ 'query' ])
-
-    test.fill_implicit()
-    return test
-  }
-
-  prepare_update_test(user:Vineyard.IUser, query:Ground.Query_Builder):Fortress.Access_Test {
-    return null
+    this.core = new Fortress.Core(this.config, this.ground)
   }
 
   query_access(user:Vineyard.IUser, query:Ground.Query_Builder):Promise {
@@ -73,9 +20,9 @@ class Fortress extends Vineyard.Bulb {
     if (!user.roles)
       throw new Error('User passed to update_access is missing a roles array.')
 
-    var test = this.prepare_query_test(query)
+    var test = this.core.prepare_query_test(query)
 
-    var result = this.run(test)
+    var result = this.core.run(user, test)
     return when.resolve(result)
   }
 
@@ -91,12 +38,6 @@ class Fortress extends Vineyard.Bulb {
 
     return when.resolve(new Fortress.Result())
   }
-
-  run(test:Fortress.Access_Test):Fortress.Result {
-    var result = new Fortress.Result()
-
-    return result
-  }
 }
 
 module Fortress {
@@ -105,20 +46,171 @@ module Fortress {
     type:string
     roles:string[]
     actions:string[]
-    resources:any[]
+    resources:any
   }
 
-  export class Resource {
-    trellis:Ground.Trellis
-    properties:Ground.Property[]
+//  export interface Resource {
+//    trellis:Ground.Trellis
+//    properties:Ground.Property[]
+//  }
+
+  export class Core {
+    gate_types = {}
+    gates:Gate[] = []
+    log:boolean = false
+    ground:Ground.Core
+
+    constructor(bulb_config, ground:Ground.Core) {
+      this.ground = ground
+      this.gate_types['global'] = Global
+      this.gate_types['user_content'] = User_Content
+      this.gate_types['link'] = Link
+      var json = fs.readFileSync(bulb_config.config_path, 'ascii')
+      var config = JSON.parse(json.toString())
+
+      for (var i = 0; i < config.gates.length; ++i) {
+        this.add_gate(config.gates[i])
+      }
+    }
+
+    add_gate(source:Gate_Source) {
+      var type = this.gate_types[source.type]
+      if (!type)
+        throw new Error('Could not find gate: "' + source.type + '".')
+
+      var gate = new type(this, source)
+      this.gates.push(gate)
+    }
+
+    get_roles(user):Promise {
+      return this.ground.trellises['user'].assure_properties(user, [ 'id', 'name', 'roles' ])
+    }
+
+    user_has_role(user, role_name:string):boolean {
+      for (var i in user.roles) {
+        if (user.roles[i].name == role_name)
+          return true
+      }
+      return false
+    }
+
+    user_has_any_role(user, role_names:string[]):boolean {
+      for (var a in user.roles) {
+        for (var b in role_names) {
+          if (user.roles[a].name == role_names[b])
+            return true
+        }
+      }
+      return false
+    }
+
+    prepare_query_test(query:Ground.Query_Builder):Access_Test {
+      var test = new Access_Test()
+      test.add_trellis(query.trellis, [ 'query' ])
+
+      test.fill_implicit()
+      return test
+    }
+
+    prepare_update_test(user:Vineyard.IUser, query:Ground.Query_Builder):Access_Test {
+      return null
+    }
+
+//    query_access(user:Vineyard.IUser, query:Ground.Query_Builder):Promise {
+//      if (typeof user !== 'object')
+//        throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
+//
+//      if (!user.roles)
+//        throw new Error('User passed to update_access is missing a roles array.')
+//
+//      var test = this.prepare_query_test(query)
+//
+//      var result = this.run(user, test)
+//      return when.resolve(result)
+//    }
+//
+//    update_access(user:Vineyard.IUser, updates):Promise {
+//      if (typeof user !== 'object')
+//        throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
+//
+//      if (!user.roles)
+//        throw new Error('User passed to update_access is missing a roles array.')
+//
+//      if (!MetaHub.is_array(updates))
+//        updates = [ updates ]
+//
+//      return when.resolve(new Result())
+//    }
+
+    run(user:Vineyard.IUser, test:Access_Test):Result {
+      console.log(test.trellises)
+      var user_gates = this.get_user_gates(user)
+      var result = new Result()
+//      console.log('gates', user_gates)
+
+      for (var i in test.trellises) {
+        var trellis = test.trellises[i]
+        var trellis_gates = user_gates.filter((gate)=> trellis.is_possible_gate(gate))
+        if (trellis_gates.length == 0 || !this.check_trellis(user, trellis, trellis_gates)) {
+          result.walls.push(new Wall(trellis))
+          break
+        }
+
+        for (var j in trellis.properties) {
+          var condition = trellis.properties[j]
+          if (condition.is_implicit && result.is_blacklisted(condition))
+            continue
+
+          var property_gates = trellis_gates.filter((gate)=> condition.is_possible_gate(gate))
+          if (property_gates.length == 0 || !this.check_property(user, condition, property_gates)) {
+            if (condition.is_implicit) {
+              if (condition.property.name != condition.property.parent.primary_key)
+                result.blacklist_implicit_property(condition)
+            }
+            else {
+              result.walls.push(new Wall(condition))
+              break
+            }
+          }
+        }
+      }
+
+      console.log(result)
+      return result
+    }
+
+    check_trellis(user:Vineyard.IUser, trellis:Trellis_Condition, gates:Gate[]) {
+      for (var j in gates) {
+        var gate = gates[j]
+        if (gate.check(user, trellis))
+          return true
+      }
+      return false
+    }
+
+    check_property(user:Vineyard.IUser, property:Property_Condition, gates:Gate[]) {
+      for (var j in gates) {
+        var gate = gates[j]
+        if (gate.check(user, property))
+          return true
+      }
+      return false
+    }
+
+    get_user_gates(user:Vineyard.IUser):Gate[] {
+      return this.gates.filter((gate) =>
+          this.user_has_any_role(user, gate.roles)
+      )
+    }
+
   }
 
   export class Gate extends MetaHub.Meta_Object {
     fortress:Fortress
     roles:string[]
 //    on:string[]
-    resources:Resource[] // null / undefined means all resources ( Trellis.* )
-    actions:string[] // null / undefined means all actions ( Trellis.* )
+    resources:any
+    actions:string[]
     name:string
 
     constructor(fortress:Fortress, source:Gate_Source) {
@@ -147,6 +239,7 @@ module Fortress {
   export interface ICondition {
     get_path():string
     actions:string[]
+    is_possible_gate(gate:Gate):boolean
   }
 
   export class Property_Condition implements ICondition {
@@ -154,15 +247,22 @@ module Fortress {
     actions:string[]
     // If the query did not specify any properties, all properties are added implicitly
     // and will be silently removed if inaccessible
-    implicit:boolean = false
+    is_implicit:boolean
 
-    constructor(property:Ground.Property, actions:string[]) {
+    constructor(property:Ground.Property, actions:string[], is_implicit:boolean = false) {
       this.property = property
       this.actions = actions
+      this.is_implicit = is_implicit
     }
 
     get_path():string {
       return this.property.fullname()
+    }
+
+    is_possible_gate(gate:Gate):boolean {
+      var resource = gate.resources[this.property.parent.name]
+      return resource != undefined
+        && (resource[0] == '*' || resource.indexOf(this.property.name) !== -1)
     }
   }
 
@@ -180,12 +280,16 @@ module Fortress {
       if (!this.properties) {
         var properties = this.trellis.get_all_properties()
         this.properties = <{ [key: string]: Property_Condition
-        }> MetaHub.map(properties, (p)=> new Property_Condition(p, this.actions))
+        }> MetaHub.map(properties, (p)=> new Property_Condition(p, this.actions, true))
       }
     }
 
     get_path():string {
       return this.trellis.name
+    }
+
+    is_possible_gate(gate:Gate):boolean {
+      return gate.resources[this.trellis.name] != undefined
     }
   }
 
@@ -239,33 +343,6 @@ module Fortress {
       return filters.length == 0
     }
 
-//    check(user:Vineyard.IUser, resource, info = null):Promise {
-//      if (resource.type == 'query') {
-//        if (this.limited_to_user(resource, user))
-//          return when.resolve(true)
-//
-//        if (User_Content.is_open_query(resource))
-//          return when.resolve(true)
-//
-//        return resource.run()
-//          .then((rows)=> this.check_rows_ownership(user, rows))
-//      }
-//      else {
-//        var id = resource.seed[resource.trellis.primary_key]
-//
-//        if (!id) // No id means this must be a creation.  This case will always allow access.
-//          return when.resolve(true)
-//
-//        var query = this.fortress.ground.create_query(resource.trellis.name)
-//        query.add_key_filter(id)
-//        var runner = query.create_runner()
-//        return runner.run_core()
-//          // No rows should result in 'true' because that means this is a creation,
-//          // and the new creation will definitely be owned by the current user
-//          .then((rows)=> rows.length == 0 || this.check_rows_ownership(user, rows))
-//      }
-//    }
-
     limited_to_user(query:Ground.Query_Builder, user:Vineyard.IUser):boolean {
       var filters = query.filters.filter((filter)=> filter.path == 'user')
       if (filters.length !== 1)
@@ -282,42 +359,14 @@ module Fortress {
       super(fortress, source)
       this.paths = source.paths.map(Ground.path_to_array)
     }
-
-    check_path(path:string, user:Vineyard.IUser, resource):Promise {
-      var args, id = resource.get_primary_key_value()
-
-      // This whole gate is only meant for specific queries, not general ones.
-      if (id === undefined)
-        return when.resolve(false)
-
-      if (path[0] == 'user')
-        args = [user.id, id]
-      else
-        args = [id, user.id]
-
-      return Ground.Query.query_path(path, args, this.fortress.ground)
-    }
-
-    check(user:Vineyard.IUser, resource, info = null):Promise {
-//      return Fortress.sequential_check(
-//        this.paths,
-//        (path)=> this.check_path(path, user, resource),
-//        (result)=> result && result.total > 0
-//      )
-//        .then(
-//        (result)=> true,
-//        (result)=> false
-//      )
-      throw new Error('Not implemented.')
-    }
   }
 
-  export class Result_Wall implements ICondition {
+  export class Wall {
     actions:string[]
     path:string
 
     constructor(condition:ICondition) {
-      this.actions = [].concat(condition.actions)
+      this.actions = (<string[]>[]).concat(condition.actions)
       this.path = condition.get_path()
     }
 
@@ -327,7 +376,20 @@ module Fortress {
   }
 
   export class Result {
-    walls:Result_Wall[] = []
+    walls:Wall[] = []
+    blacklisted_trellis_properties = {}
+
+    blacklist_implicit_property(condition:Property_Condition) {
+      var name = condition.property.parent.name
+      var trellis = this.blacklisted_trellis_properties[name] = this.blacklisted_trellis_properties[name] || []
+      trellis.push(condition.property.name)
+    }
+
+    is_blacklisted(condition:Property_Condition):boolean {
+      var name = condition.property.parent.name
+      var trellis_entry = this.blacklisted_trellis_properties[name]
+      return trellis_entry && trellis_entry.indexOf(condition.property.name) > -1
+    }
   }
 
 }

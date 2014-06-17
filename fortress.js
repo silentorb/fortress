@@ -14,63 +14,9 @@ var Fortress = (function (_super) {
     __extends(Fortress, _super);
     function Fortress() {
         _super.apply(this, arguments);
-        this.gate_types = {};
-        this.gates = [];
-        this.log = false;
     }
-    Fortress.prototype.add_gate = function (source) {
-        var type = this.gate_types[source.type];
-        if (!type)
-            throw new Error('Could not find gate: "' + source.type + '".');
-
-        var gate = new type(this, source);
-        this.gates.push(gate);
-    };
-
-    Fortress.prototype.get_roles = function (user) {
-        return this.ground.trellises['user'].assure_properties(user, ['id', 'name', 'roles']);
-    };
-
-    Fortress.prototype.user_has_role = function (user, role_name) {
-        for (var i in user.roles) {
-            if (user.roles[i].name == role_name)
-                return true;
-        }
-        return false;
-    };
-
-    Fortress.prototype.user_has_any_role = function (user, role_names) {
-        for (var a in user.roles) {
-            for (var b in role_names) {
-                if (user.roles[a].name == role_names[b])
-                    return true;
-            }
-        }
-        return false;
-    };
-
     Fortress.prototype.grow = function () {
-        this.gate_types['global'] = Fortress.Global;
-        this.gate_types['user_content'] = Fortress.User_Content;
-        this.gate_types['link'] = Fortress.Link;
-        var json = fs.readFileSync(this.config.config_path, 'ascii');
-        var config = JSON.parse(json.toString());
-
-        for (var i = 0; i < config.gates.length; ++i) {
-            this.add_gate(config.gates[i]);
-        }
-    };
-
-    Fortress.prototype.prepare_query_test = function (query) {
-        var test = new Fortress.Access_Test();
-        test.add_trellis(query.trellis, ['query']);
-
-        test.fill_implicit();
-        return test;
-    };
-
-    Fortress.prototype.prepare_update_test = function (user, query) {
-        return null;
+        this.core = new Fortress.Core(this.config, this.ground);
     };
 
     Fortress.prototype.query_access = function (user, query) {
@@ -80,9 +26,9 @@ var Fortress = (function (_super) {
         if (!user.roles)
             throw new Error('User passed to update_access is missing a roles array.');
 
-        var test = this.prepare_query_test(query);
+        var test = this.core.prepare_query_test(query);
 
-        var result = this.run(test);
+        var result = this.core.run(user, test);
         return when.resolve(result);
     };
 
@@ -98,23 +44,136 @@ var Fortress = (function (_super) {
 
         return when.resolve(new Fortress.Result());
     };
-
-    Fortress.prototype.run = function (test) {
-        var result = new Fortress.Result();
-
-        return result;
-    };
     return Fortress;
 })(Vineyard.Bulb);
 
 var Fortress;
 (function (Fortress) {
-    var Resource = (function () {
-        function Resource() {
+    var Core = (function () {
+        function Core(bulb_config, ground) {
+            this.gate_types = {};
+            this.gates = [];
+            this.log = false;
+            this.ground = ground;
+            this.gate_types['global'] = Global;
+            this.gate_types['user_content'] = User_Content;
+            this.gate_types['link'] = Link;
+            var json = fs.readFileSync(bulb_config.config_path, 'ascii');
+            var config = JSON.parse(json.toString());
+
+            for (var i = 0; i < config.gates.length; ++i) {
+                this.add_gate(config.gates[i]);
+            }
         }
-        return Resource;
+        Core.prototype.add_gate = function (source) {
+            var type = this.gate_types[source.type];
+            if (!type)
+                throw new Error('Could not find gate: "' + source.type + '".');
+
+            var gate = new type(this, source);
+            this.gates.push(gate);
+        };
+
+        Core.prototype.get_roles = function (user) {
+            return this.ground.trellises['user'].assure_properties(user, ['id', 'name', 'roles']);
+        };
+
+        Core.prototype.user_has_role = function (user, role_name) {
+            for (var i in user.roles) {
+                if (user.roles[i].name == role_name)
+                    return true;
+            }
+            return false;
+        };
+
+        Core.prototype.user_has_any_role = function (user, role_names) {
+            for (var a in user.roles) {
+                for (var b in role_names) {
+                    if (user.roles[a].name == role_names[b])
+                        return true;
+                }
+            }
+            return false;
+        };
+
+        Core.prototype.prepare_query_test = function (query) {
+            var test = new Access_Test();
+            test.add_trellis(query.trellis, ['query']);
+
+            test.fill_implicit();
+            return test;
+        };
+
+        Core.prototype.prepare_update_test = function (user, query) {
+            return null;
+        };
+
+        Core.prototype.run = function (user, test) {
+            console.log(test.trellises);
+            var user_gates = this.get_user_gates(user);
+            var result = new Result();
+
+            for (var i in test.trellises) {
+                var trellis = test.trellises[i];
+                var trellis_gates = user_gates.filter(function (gate) {
+                    return trellis.is_possible_gate(gate);
+                });
+                if (trellis_gates.length == 0 || !this.check_trellis(user, trellis, trellis_gates)) {
+                    result.walls.push(new Wall(trellis));
+                    break;
+                }
+
+                for (var j in trellis.properties) {
+                    var condition = trellis.properties[j];
+                    if (condition.is_implicit && result.is_blacklisted(condition))
+                        continue;
+
+                    var property_gates = trellis_gates.filter(function (gate) {
+                        return condition.is_possible_gate(gate);
+                    });
+                    if (property_gates.length == 0 || !this.check_property(user, condition, property_gates)) {
+                        if (condition.is_implicit) {
+                            if (condition.property.name != condition.property.parent.primary_key)
+                                result.blacklist_implicit_property(condition);
+                        } else {
+                            result.walls.push(new Wall(condition));
+                            break;
+                        }
+                    }
+                }
+            }
+
+            console.log(result);
+            return result;
+        };
+
+        Core.prototype.check_trellis = function (user, trellis, gates) {
+            for (var j in gates) {
+                var gate = gates[j];
+                if (gate.check(user, trellis))
+                    return true;
+            }
+            return false;
+        };
+
+        Core.prototype.check_property = function (user, property, gates) {
+            for (var j in gates) {
+                var gate = gates[j];
+                if (gate.check(user, property))
+                    return true;
+            }
+            return false;
+        };
+
+        Core.prototype.get_user_gates = function (user) {
+            var _this = this;
+            return this.gates.filter(function (gate) {
+                return _this.user_has_any_role(user, gate.roles);
+            });
+        };
+        return Core;
     })();
-    Fortress.Resource = Resource;
+    Fortress.Core = Core;
 
     var Gate = (function (_super) {
         __extends(Gate, _super);
@@ -151,13 +210,19 @@ var Fortress;
     Fortress.Global = Global;
 
     var Property_Condition = (function () {
-        function Property_Condition(property, actions) {
-            this.implicit = false;
+        function Property_Condition(property, actions, is_implicit) {
+            if (typeof is_implicit === "undefined") { is_implicit = false; }
             this.property = property;
             this.actions = actions;
+            this.is_implicit = is_implicit;
         }
         Property_Condition.prototype.get_path = function () {
             return this.property.fullname();
+        };
+
+        Property_Condition.prototype.is_possible_gate = function (gate) {
+            var resource = gate.resources[this.property.parent.name];
+            return resource != undefined && (resource[0] == '*' || resource.indexOf(this.property.name) !== -1);
         };
         return Property_Condition;
     })();
@@ -173,13 +238,17 @@ var Fortress;
             if (!this.properties) {
                 var properties = this.trellis.get_all_properties();
                 this.properties = MetaHub.map(properties, function (p) {
-                    return new Property_Condition(p, _this.actions);
+                    return new Property_Condition(p, _this.actions, true);
                 });
             }
         };
 
         Trellis_Condition.prototype.get_path = function () {
             return this.trellis.name;
+        };
+
+        Trellis_Condition.prototype.is_possible_gate = function (gate) {
+            return gate.resources[this.trellis.name] != undefined;
         };
         return Trellis_Condition;
     })();
@@ -260,44 +329,38 @@ var Fortress;
             _super.call(this, fortress, source);
             this.paths = source.paths.map(Ground.path_to_array);
         }
-        Link.prototype.check_path = function (path, user, resource) {
-            var args, id = resource.get_primary_key_value();
-
-            if (id === undefined)
-                return when.resolve(false);
-
-            if (path[0] == 'user')
-                args = [user.id, id];
-            else
-                args = [id, user.id];
-
-            return Ground.Query.query_path(path, args, this.fortress.ground);
-        };
-
-        Link.prototype.check = function (user, resource, info) {
-            if (typeof info === "undefined") { info = null; }
-            throw new Error('Not implemented.');
-        };
         return Link;
     })(Gate);
     Fortress.Link = Link;
 
-    var Result_Wall = (function () {
-        function Result_Wall(condition) {
+    var Wall = (function () {
+        function Wall(condition) {
             this.actions = [].concat(condition.actions);
             this.path = condition.get_path();
         }
-        Result_Wall.prototype.get_path = function () {
+        Wall.prototype.get_path = function () {
             return this.path;
         };
-        return Result_Wall;
+        return Wall;
     })();
-    Fortress.Result_Wall = Result_Wall;
+    Fortress.Wall = Wall;
 
     var Result = (function () {
         function Result() {
             this.walls = [];
+            this.blacklisted_trellis_properties = {};
         }
+        Result.prototype.blacklist_implicit_property = function (condition) {
+            var name = condition.property.parent.name;
+            var trellis = this.blacklisted_trellis_properties[name] = this.blacklisted_trellis_properties[name] || [];
+            trellis.push(condition.property.name);
+        };
+
+        Result.prototype.is_blacklisted = function (condition) {
+            var name = condition.property.parent.name;
+            var trellis_entry = this.blacklisted_trellis_properties[name];
+            return trellis_entry && trellis_entry.indexOf(condition.property.name) > -1;
+        };
         return Result;
     })();
     Fortress.Result = Result;
