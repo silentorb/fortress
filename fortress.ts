@@ -106,7 +106,15 @@ module Fortress {
 
     prepare_query_test(query:Ground.Query_Builder):Access_Test {
       var test = new Access_Test()
-      test.add_trellis(query.trellis, [ 'query' ])
+      var condition = test.add_trellis(query.trellis, [ 'query' ])
+      if (query.filters) {
+        for (var i = 0; i < query.filters.length; ++i) {
+          var filter = query.filters[i]
+          if (filter.property.parent.name == query.trellis.name) {
+            condition.add_property(filter.property, [ 'query' ])
+          }
+        }
+      }
 
       test.fill_implicit()
       return test
@@ -115,32 +123,6 @@ module Fortress {
     prepare_update_test(user:Vineyard.IUser, query:Ground.Query_Builder):Access_Test {
       return null
     }
-
-//    query_access(user:Vineyard.IUser, query:Ground.Query_Builder):Promise {
-//      if (typeof user !== 'object')
-//        throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
-//
-//      if (!user.roles)
-//        throw new Error('User passed to update_access is missing a roles array.')
-//
-//      var test = this.prepare_query_test(query)
-//
-//      var result = this.run(user, test)
-//      return when.resolve(result)
-//    }
-//
-//    update_access(user:Vineyard.IUser, updates):Promise {
-//      if (typeof user !== 'object')
-//        throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
-//
-//      if (!user.roles)
-//        throw new Error('User passed to update_access is missing a roles array.')
-//
-//      if (!MetaHub.is_array(updates))
-//        updates = [ updates ]
-//
-//      return when.resolve(new Result())
-//    }
 
     run(user:Vineyard.IUser, test:Access_Test):Result {
       console.log(test.trellises)
@@ -270,10 +252,14 @@ module Fortress {
     trellis:Ground.Trellis
     actions:string[] = []
     properties:{ [key: string]: Property_Condition
-    }
+    } = {}
 
     constructor(trellis:Ground.Trellis) {
       this.trellis = trellis
+    }
+
+    add_property(property:Ground.Property, actions:string[]) {
+      this.properties[property.name] = new Property_Condition(property, actions)
     }
 
     fill_implicit() {
@@ -298,7 +284,7 @@ module Fortress {
     trellises:{ [key: string]: Trellis_Condition
     } = {}
 
-    add_trellis(trellis:Ground.Trellis, actions:string[]) {
+    add_trellis(trellis:Ground.Trellis, actions:string[]):Trellis_Condition {
       if (!this.trellises[trellis.name]) {
         this.trellises[trellis.name] = new Trellis_Condition(trellis)
       }
@@ -310,6 +296,8 @@ module Fortress {
         if (entry.actions.indexOf(action) === -1)
           entry.actions.push(action)
       }
+
+      return entry
     }
 
     fill_implicit() {

@@ -61,6 +61,7 @@ declare module Fortress {
             [key: string]: Property_Condition;
         };
         constructor(trellis: Ground.Trellis);
+        public add_property(property: Ground.Property, actions: string[]): void;
         public fill_implicit(): void;
         public get_path(): string;
         public is_possible_gate(gate: Gate): boolean;
@@ -70,7 +71,7 @@ declare module Fortress {
         public trellises: {
             [key: string]: Trellis_Condition;
         };
-        public add_trellis(trellis: Ground.Trellis, actions: string[]): void;
+        public add_trellis(trellis: Ground.Trellis, actions: string[]): Trellis_Condition;
         public fill_implicit(): void;
     }
     class Prerequisite {

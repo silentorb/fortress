@@ -98,7 +98,15 @@ var Fortress;
 
         Core.prototype.prepare_query_test = function (query) {
             var test = new Access_Test();
-            test.add_trellis(query.trellis, ['query']);
+            var condition = test.add_trellis(query.trellis, ['query']);
+            if (query.filters) {
+                for (var i = 0; i < query.filters.length; ++i) {
+                    var filter = query.filters[i];
+                    if (filter.property.parent.name == query.trellis.name) {
+                        condition.add_property(filter.property, ['query']);
+                    }
+                }
+            }
 
             test.fill_implicit();
             return test;
@@ -231,8 +239,13 @@ var Fortress;
     var Trellis_Condition = (function () {
         function Trellis_Condition(trellis) {
             this.actions = [];
+            this.properties = {};
             this.trellis = trellis;
         }
+        Trellis_Condition.prototype.add_property = function (property, actions) {
+            this.properties[property.name] = new Property_Condition(property, actions);
+        };
+
         Trellis_Condition.prototype.fill_implicit = function () {
             var _this = this;
             if (!this.properties) {
@@ -269,6 +282,8 @@ var Fortress;
                 if (entry.actions.indexOf(action) === -1)
                     entry.actions.push(action);
             }
+
+            return entry;
         };
 
         Access_Test.prototype.fill_implicit = function () {
