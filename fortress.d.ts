@@ -4,6 +4,7 @@ declare class Fortress extends Vineyard.Bulb {
     public grow(): void;
     public query_access(user: Vineyard.IUser, query: Ground.Query_Builder): Promise;
     public update_access(user: Vineyard.IUser, updates: any): Promise;
+    public user_has_role(user: any, role_name: string): boolean;
 }
 declare module Fortress {
     interface Gate_Source {
@@ -45,6 +46,7 @@ declare module Fortress {
         get_path(): string;
         actions: string[];
         is_possible_gate(gate: Gate): boolean;
+        wall_message: (action: string) => string;
     }
     class Property_Condition implements ICondition {
         public property: Ground.Property;
@@ -53,6 +55,7 @@ declare module Fortress {
         constructor(property: Ground.Property, actions: string[], is_implicit?: boolean);
         public get_path(): string;
         public is_possible_gate(gate: Gate): boolean;
+        public wall_message(action: any): string;
     }
     class Trellis_Condition implements ICondition {
         public trellis: Ground.Trellis;
@@ -65,6 +68,7 @@ declare module Fortress {
         public fill_implicit(): void;
         public get_path(): string;
         public is_possible_gate(gate: Gate): boolean;
+        public wall_message(action: any): string;
     }
     class Access_Test {
         public prerequisites: Prerequisite[];
@@ -88,14 +92,18 @@ declare module Fortress {
     class Wall {
         public actions: string[];
         public path: string;
+        public condition: ICondition;
         constructor(condition: ICondition);
         public get_path(): string;
+        public get_message(): string;
     }
     class Result {
         public walls: Wall[];
         public blacklisted_trellis_properties: {};
+        public is_allowed: boolean;
         public blacklist_implicit_property(condition: Property_Condition): void;
         public is_blacklisted(condition: Property_Condition): boolean;
+        public get_message(): string;
     }
 }
 export = Fortress;

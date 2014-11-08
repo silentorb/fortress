@@ -44,6 +44,14 @@ var Fortress = (function (_super) {
 
         return when.resolve(new Fortress.Result());
     };
+
+    Fortress.prototype.user_has_role = function (user, role_name) {
+        for (var i in user.roles) {
+            if (user.roles[i].name == role_name)
+                return true;
+        }
+        return false;
+    };
     return Fortress;
 })(Vineyard.Bulb);
 
@@ -117,7 +125,6 @@ var Fortress;
         };
 
         Core.prototype.run = function (user, test) {
-            console.log(test.trellises);
             var user_gates = this.get_user_gates(user);
             var result = new Result();
 
@@ -151,7 +158,8 @@ var Fortress;
                 }
             }
 
-            console.log(result);
+            result.is_allowed = result.walls.length == 0;
+
             return result;
         };
 
@@ -232,6 +240,10 @@ var Fortress;
             var resource = gate.resources[this.property.parent.name];
             return resource != undefined && (resource[0] == '*' || resource.indexOf(this.property.name) !== -1);
         };
+
+        Property_Condition.prototype.wall_message = function (action) {
+            return 'You do not have permission to ' + action + ' property "' + this.property.fullname() + '".';
+        };
         return Property_Condition;
     })();
     Fortress.Property_Condition = Property_Condition;
@@ -262,6 +274,10 @@ var Fortress;
 
         Trellis_Condition.prototype.is_possible_gate = function (gate) {
             return gate.resources[this.trellis.name] != undefined;
+        };
+
+        Trellis_Condition.prototype.wall_message = function (action) {
+            return 'You do not have permission to ' + action + ' trellis "' + this.trellis.name + '".';
         };
         return Trellis_Condition;
     })();
@@ -352,9 +368,14 @@ var Fortress;
         function Wall(condition) {
             this.actions = [].concat(condition.actions);
             this.path = condition.get_path();
+            this.condition = condition;
         }
         Wall.prototype.get_path = function () {
             return this.path;
+        };
+
+        Wall.prototype.get_message = function () {
+            return this.condition.wall_message(this.actions[0]);
         };
         return Wall;
     })();
@@ -364,6 +385,7 @@ var Fortress;
         function Result() {
             this.walls = [];
             this.blacklisted_trellis_properties = {};
+            this.is_allowed = false;
         }
         Result.prototype.blacklist_implicit_property = function (condition) {
             var name = condition.property.parent.name;
@@ -376,10 +398,15 @@ var Fortress;
             var trellis_entry = this.blacklisted_trellis_properties[name];
             return trellis_entry && trellis_entry.indexOf(condition.property.name) > -1;
         };
+
+        Result.prototype.get_message = function () {
+            return "You are not authorized to perform this request for the following reasons:\n" + this.walls.map(function (wall) {
+                return wall.get_message();
+            }).join("\n");
+        };
         return Result;
     })();
     Fortress.Result = Result;
 })(Fortress || (Fortress = {}));
-require('source-map-support').install();
 module.exports = Fortress;
 //# sourceMappingURL=fortress.js.map

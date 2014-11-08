@@ -358,4 +358,3 @@ module Fortress {
 
 }
 export = Fortress
-require('source-map-support').install();

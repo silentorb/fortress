@@ -34,9 +34,17 @@ class Fortress extends Vineyard.Bulb {
       throw new Error('User passed to update_access is missing a roles array.')
 
     if (!MetaHub.is_array(updates))
-      updates = [ updates ]
+      updates = [updates]
 
     return when.resolve(new Fortress.Result())
+  }
+
+  user_has_role(user, role_name:string):boolean {
+    for (var i in user.roles) {
+      if (user.roles[i].name == role_name)
+        return true
+    }
+    return false
   }
 }
 
@@ -83,7 +91,7 @@ module Fortress {
     }
 
     get_roles(user):Promise {
-      return this.ground.trellises['user'].assure_properties(user, [ 'id', 'name', 'roles' ])
+      return this.ground.trellises['user'].assure_properties(user, ['id', 'name', 'roles'])
     }
 
     user_has_role(user, role_name:string):boolean {
@@ -106,12 +114,12 @@ module Fortress {
 
     prepare_query_test(query:Ground.Query_Builder):Access_Test {
       var test = new Access_Test()
-      var condition = test.add_trellis(query.trellis, [ 'query' ])
+      var condition = test.add_trellis(query.trellis, ['query'])
       if (query.filters) {
         for (var i = 0; i < query.filters.length; ++i) {
           var filter = query.filters[i]
           if (filter.property.parent.name == query.trellis.name) {
-            condition.add_property(filter.property, [ 'query' ])
+            condition.add_property(filter.property, ['query'])
           }
         }
       }
@@ -125,7 +133,7 @@ module Fortress {
     }
 
     run(user:Vineyard.IUser, test:Access_Test):Result {
-      console.log(test.trellises)
+      //console.log(test.trellises)
       var user_gates = this.get_user_gates(user)
       var result = new Result()
 //      console.log('gates', user_gates)
@@ -157,7 +165,8 @@ module Fortress {
         }
       }
 
-      console.log(result)
+      result.is_allowed = result.walls.length == 0
+      //console.log(result)
       return result
     }
 
@@ -222,6 +231,7 @@ module Fortress {
     get_path():string
     actions:string[]
     is_possible_gate(gate:Gate):boolean
+    wall_message:(action:string)=>string
   }
 
   export class Property_Condition implements ICondition {
@@ -244,7 +254,11 @@ module Fortress {
     is_possible_gate(gate:Gate):boolean {
       var resource = gate.resources[this.property.parent.name]
       return resource != undefined
-        && (resource[0] == '*' || resource.indexOf(this.property.name) !== -1)
+      && (resource[0] == '*' || resource.indexOf(this.property.name) !== -1)
+    }
+
+    wall_message(action) {
+      return 'You do not have permission to ' + action + ' property "' + this.property.fullname() + '".'
     }
   }
 
@@ -276,6 +290,10 @@ module Fortress {
 
     is_possible_gate(gate:Gate):boolean {
       return gate.resources[this.trellis.name] != undefined
+    }
+
+    wall_message(action) {
+      return 'You do not have permission to ' + action + ' trellis "' + this.trellis.name + '".'
     }
   }
 
@@ -352,20 +370,27 @@ module Fortress {
   export class Wall {
     actions:string[]
     path:string
+    condition:ICondition
 
     constructor(condition:ICondition) {
       this.actions = (<string[]>[]).concat(condition.actions)
       this.path = condition.get_path()
+      this.condition = condition
     }
 
     get_path():string {
       return this.path
+    }
+
+    get_message():string {
+      return this.condition.wall_message(this.actions[0])
     }
   }
 
   export class Result {
     walls:Wall[] = []
     blacklisted_trellis_properties = {}
+    is_allowed:boolean = false
 
     blacklist_implicit_property(condition:Property_Condition) {
       var name = condition.property.parent.name
@@ -378,8 +403,12 @@ module Fortress {
       var trellis_entry = this.blacklisted_trellis_properties[name]
       return trellis_entry && trellis_entry.indexOf(condition.property.name) > -1
     }
+
+    get_message():string {
+      return "You are not authorized to perform this request for the following reasons:\n"
+      + this.walls.map((wall)=> wall.get_message()).join("\n")
+    }
   }
 
 }
 export = Fortress
-require('source-map-support').install();
