@@ -41,11 +41,13 @@ class Core {
 
   prepare_query_test(query:Ground.Query_Builder):Access_Test {
     var test = new Access_Test()
+    var property
     var condition = test.add_trellis(query.trellis, ['query'])
     if (query.filters) {
       for (var i = 0; i < query.filters.length; ++i) {
         var filter = query.filters[i]
-        var property = query.trellis.properties[filter.path]
+        var properties = query.trellis.get_all_properties()
+        property = properties[filter.path]
         if (property.parent.name == query.trellis.name) {
           condition.add_property(property, ['query'])
         }
@@ -53,7 +55,7 @@ class Core {
     }
     if (query.properties) {
       for (var name in query.properties) {
-        var property = query.trellis.properties[name]
+        property = query.trellis.get_all_properties()[name]
         condition.add_property(property, ['query'])
       }
     }
