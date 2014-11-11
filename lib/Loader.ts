@@ -22,7 +22,13 @@ interface Zone_Source {
 }
 
 class Loader {
-  static load(path:string) {
+  static gate_types = {}
+
+  static load(path:string):Zone[] {
+    Loader.gate_types['global'] = Global
+    Loader.gate_types['user_content'] = User_Content
+    Loader.gate_types['path'] = Link
+
     var fs = require('fs')
     var json = fs.readFileSync(path, 'ascii')
     var config:Fortress_Source = JSON.parse(json.toString())
@@ -32,6 +38,8 @@ class Loader {
       var zone = this.create_zone(config.zones[i])
       zones.push(zone)
     }
+
+    return zones
   }
 
   static create_zone(source:Zone_Source) {
@@ -47,11 +55,11 @@ class Loader {
   }
 
   static add_gate(zone, source:Gate_Source) {
-    //var type = this.gate_types[source.type]
-    //if (!type)
-    //  throw new Error('Could not find gate: "' + source.type + '".')
-    //
-    //var gate = new type(this, source)
-    //zone.gates.push(gate)
+    var type = Loader.gate_types[source.type]
+    if (!type)
+      throw new Error('Could not find gate: "' + source.type + '".')
+
+    var gate = new type(source)
+    zone.gates.push(gate)
   }
 }

@@ -3,7 +3,8 @@
  * Date: 11/9/2014
  */
 
-/// <reference path="../../vineyard/vineyard.d.ts"/>
+/// <reference path="references.ts"/>
+
 ///***var when = require('when')
 ///***var Vineyard = require('vineyard')
 ///***var MetaHub = require('vineyard-metahub')

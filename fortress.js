@@ -8,7 +8,7 @@ var __extends = this.__extends || function (d, b) {
     __.prototype = b.prototype;
     d.prototype = new __();
 };
-/// <reference path="../../vineyard/vineyard.d.ts"/>
+/// <reference path="references.ts"/>
 var when = require('when')
 var Vineyard = require('vineyard')
 var MetaHub = require('vineyard-metahub')
@@ -102,6 +102,10 @@ var Loader = (function () {
     function Loader() {
     }
     Loader.load = function (path) {
+        Loader.gate_types['global'] = Global;
+        Loader.gate_types['user_content'] = User_Content;
+        Loader.gate_types['path'] = Link;
+
         var fs = require('fs');
         var json = fs.readFileSync(path, 'ascii');
         var config = JSON.parse(json.toString());
@@ -111,6 +115,8 @@ var Loader = (function () {
             var zone = this.create_zone(config.zones[i]);
             zones.push(zone);
         }
+
+        return zones;
     };
 
     Loader.create_zone = function (source) {
@@ -126,13 +132,14 @@ var Loader = (function () {
     };
 
     Loader.add_gate = function (zone, source) {
-        //var type = this.gate_types[source.type]
-        //if (!type)
-        //  throw new Error('Could not find gate: "' + source.type + '".')
-        //
-        //var gate = new type(this, source)
-        //zone.gates.push(gate)
+        var type = Loader.gate_types[source.type];
+        if (!type)
+            throw new Error('Could not find gate: "' + source.type + '".');
+
+        var gate = new type(source);
+        zone.gates.push(gate);
     };
+    Loader.gate_types = {};
     return Loader;
 })();
 /**
@@ -299,10 +306,7 @@ var Core = (function () {
         this.zones = [];
         this.log = false;
         this.ground = ground;
-        this.gate_types['global'] = Global;
-        this.gate_types['user_content'] = User_Content;
-        this.gate_types['path'] = Link;
-        Loader.load(bulb_config.config_path);
+        this.zones = Loader.load(bulb_config.config_path);
     }
     Core.prototype.get_roles = function (user) {
         return this.ground.trellises['user'].assure_properties(user, ['id', 'name', 'roles']);

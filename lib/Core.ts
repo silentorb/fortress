@@ -14,10 +14,7 @@ class Core {
 
   constructor(bulb_config, ground:Ground.Core) {
     this.ground = ground
-    this.gate_types['global'] = Global
-    this.gate_types['user_content'] = User_Content
-    this.gate_types['path'] = Link
-    Loader.load(bulb_config.config_path)
+    this.zones = Loader.load(bulb_config.config_path)
   }
 
   get_roles(user):Promise {
@@ -60,7 +57,6 @@ class Core {
         condition.add_property(property, ['query'])
       }
     }
-
 
     test.fill_implicit()
     return test
