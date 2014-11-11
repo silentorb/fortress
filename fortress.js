@@ -353,8 +353,27 @@ var Core = (function () {
         return test;
     };
 
-    Core.prototype.prepare_update_test = function (user, query) {
-        return null;
+    Core.prototype.prepare_update_test = function (updates) {
+        var test = new Access_Test();
+        var trellises = {};
+        for (var i = 0; i < updates.length; ++i) {
+            var trellis = updates[i].trellis;
+            if (!trellises[trellis.name])
+                trellises[trellis.name] = trellis;
+        }
+
+        for (var name in trellises) {
+            var condition = test.add_trellis(trellises[name], ['update']);
+        }
+
+        //if (query.properties) {
+        //  for (var name in query.properties) {
+        //    var property = query.trellis.properties[name]
+        //    condition.add_property(property, ['query'])
+        //  }
+        //}
+        //test.fill_implicit()
+        return test;
     };
 
     Core.prototype.run = function (user, test) {
@@ -486,7 +505,9 @@ var Fortress = (function (_super) {
         if (!MetaHub.is_array(updates))
             updates = [updates];
 
-        return when.resolve(new Result());
+        var test = this.core.prepare_update_test(updates);
+
+        return this.core.run(user, test);
     };
 
     Fortress.prototype.user_has_role = function (user, role_name) {

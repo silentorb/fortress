@@ -62,8 +62,27 @@ class Core {
     return test
   }
 
-  prepare_update_test(user:Vineyard.IUser, query:Ground.Query_Builder):Access_Test {
-    return null
+  prepare_update_test(updates:any[]):Access_Test {
+    var test = new Access_Test()
+    var trellises = {}
+    for (var i = 0; i < updates.length; ++i) {
+      var trellis = updates[i].trellis
+      if (!trellises[trellis.name])
+        trellises[trellis.name] = trellis
+    }
+
+    for (var name in trellises) {
+      var condition = test.add_trellis(trellises[name], ['update'])
+    }
+    //if (query.properties) {
+    //  for (var name in query.properties) {
+    //    var property = query.trellis.properties[name]
+    //    condition.add_property(property, ['query'])
+    //  }
+    //}
+
+    //test.fill_implicit()
+    return test
   }
 
   run(user:Vineyard.IUser, test:Access_Test):Promise {
@@ -131,6 +150,7 @@ class Core {
     }
     return false
   }
+
 
   get_user_gates(user:Vineyard.IUser):Gate[] {
     var result = []

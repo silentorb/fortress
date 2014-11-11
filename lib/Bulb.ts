@@ -35,7 +35,9 @@ class Fortress extends Vineyard.Bulb {
     if (!MetaHub.is_array(updates))
       updates = [updates]
 
-    return when.resolve(new Result())
+    var test = this.core.prepare_update_test(updates)
+
+    return this.core.run(user, test)
   }
 
   user_has_role(user, role_name:string):boolean {
