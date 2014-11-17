@@ -160,6 +160,9 @@ var Property_Condition = (function () {
     };
 
     Property_Condition.prototype.is_possible_gate = function (gate) {
+        if (gate.resources === '*' || gate.resources[0] === '*')
+            return true;
+
         var resource = gate.resources[this.property.parent.name];
         return resource != undefined && (resource[0] == '*' || resource.indexOf(this.property.name) !== -1);
     };
@@ -207,6 +210,9 @@ var Trellis_Condition = (function () {
     };
 
     Trellis_Condition.prototype.is_possible_gate = function (gate) {
+        if (gate.resources === '*' || gate.resources[0] === '*')
+            return true;
+
         return gate.resources[this.trellis.name] != undefined;
     };
 
@@ -529,4 +535,3 @@ var Fortress = (function (_super) {
 module.exports = Fortress
 function typescript_bulb_export_hack() {
 }
-//# sourceMappingURL=fortress.js.map

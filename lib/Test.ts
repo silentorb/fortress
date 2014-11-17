@@ -30,6 +30,9 @@ class Property_Condition implements ICondition {
   }
 
   is_possible_gate(gate:Gate):boolean {
+    if (gate.resources === '*' || gate.resources[0] === '*')
+      return true
+
     var resource = gate.resources[this.property.parent.name]
     return resource != undefined
     && (resource[0] == '*' || resource.indexOf(this.property.name) !== -1)
@@ -76,6 +79,9 @@ class Trellis_Condition implements ICondition {
   }
 
   is_possible_gate(gate:Gate):boolean {
+    if (gate.resources === '*' || gate.resources[0] === '*')
+      return true
+
     return gate.resources[this.trellis.name] != undefined
   }
 

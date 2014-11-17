@@ -133,8 +133,6 @@ class Core {
     return pipeline(promises)
   }
 
-
-
   check_trellis(user:Vineyard.IUser, trellis:Trellis_Condition, gates:Gate[]) {
     for (var j in gates) {
       var gate = gates[j]
@@ -152,7 +150,6 @@ class Core {
     }
     return false
   }
-
 
   get_user_gates(user:Vineyard.IUser):Gate[] {
     var result = []
@@ -176,5 +173,4 @@ class Core {
 
     return null
   }
-
 }
