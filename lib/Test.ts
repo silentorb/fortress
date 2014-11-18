@@ -8,39 +8,8 @@
 interface ICondition {
   get_path():string
   actions:string[]
-  is_possible_gate(gate:Gate):boolean
+  is_possible_gate(gate:Gate, context):boolean
   wall_message:(action:string)=>string
-}
-
-class Property_Condition implements ICondition {
-  property:Ground.Property
-  actions:string[]
-  // If the query did not specify any properties, all properties are added implicitly
-  // and will be silently removed if inaccessible
-  is_implicit:boolean
-
-  constructor(property:Ground.Property, actions:string[], is_implicit:boolean = false) {
-    this.property = property
-    this.actions = actions
-    this.is_implicit = is_implicit
-  }
-
-  get_path():string {
-    return this.property.fullname()
-  }
-
-  is_possible_gate(gate:Gate):boolean {
-    if (gate.resources === '*' || gate.resources[0] === '*')
-      return true
-
-    var resource = gate.resources[this.property.parent.name]
-    return resource != undefined
-    && (resource[0] == '*' || resource.indexOf(this.property.name) !== -1)
-  }
-
-  wall_message(action) {
-    return 'You do not have permission to ' + action + ' property "' + this.property.fullname() + '".'
-  }
 }
 
 class Trellis_Condition implements ICondition {
@@ -78,7 +47,7 @@ class Trellis_Condition implements ICondition {
     return this.trellis.name
   }
 
-  is_possible_gate(gate:Gate):boolean {
+  is_possible_gate(gate:Gate, context = null):boolean {
     if (gate.resources === '*' || gate.resources[0] === '*')
       return true
 
@@ -86,7 +55,46 @@ class Trellis_Condition implements ICondition {
   }
 
   wall_message(action) {
-    return 'You do not have permission to ' + action + ' trellis "' + this.trellis.name + '".'
+    return 'You do not have permission to ' + action + " trellis '" + this.trellis.name + "'."
+  }
+}
+
+class Property_Condition implements ICondition {
+  property:Ground.Property
+  actions:string[]
+  // If the query did not specify any properties, all properties are added implicitly
+  // and will be silently removed if inaccessible
+  is_implicit:boolean
+
+  constructor(property:Ground.Property, actions:string[], is_implicit:boolean = false) {
+    this.property = property
+    this.actions = actions
+    this.is_implicit = is_implicit
+  }
+
+  get_path():string {
+    return this.property.fullname()
+  }
+
+  is_possible_gate(gate:Gate, context):boolean {
+    if (gate.resources === '*' || gate.resources[0] === '*')
+      return true
+
+    var resource = gate.resources[this.property.parent.name]
+    if (resource == undefined) {
+
+      // Test for child trellis permission
+      var trellis_test = <Trellis_Condition> context
+      resource = gate.resources[trellis_test.trellis.name]
+      if (resource == undefined)
+        return false
+    }
+
+    return resource[0] == '*' || resource.indexOf(this.property.name) !== -1
+  }
+
+  wall_message(action) {
+    return 'You do not have permission to ' + action + " property '" + this.property.fullname() + "'."
   }
 }
 
@@ -162,7 +170,7 @@ class Result {
   }
 
   get_message():string {
-    return "You are not authorized to perform this request for the following reasons:\n"
+    return "You are not authorized to perform this request: \n"
     + this.walls.map((wall)=> wall.get_message()).join("\n")
   }
 

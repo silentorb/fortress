@@ -148,31 +148,6 @@ var Loader = (function () {
 */
 /// <reference path="references.ts"/>
 
-var Property_Condition = (function () {
-    function Property_Condition(property, actions, is_implicit) {
-        if (typeof is_implicit === "undefined") { is_implicit = false; }
-        this.property = property;
-        this.actions = actions;
-        this.is_implicit = is_implicit;
-    }
-    Property_Condition.prototype.get_path = function () {
-        return this.property.fullname();
-    };
-
-    Property_Condition.prototype.is_possible_gate = function (gate) {
-        if (gate.resources === '*' || gate.resources[0] === '*')
-            return true;
-
-        var resource = gate.resources[this.property.parent.name];
-        return resource != undefined && (resource[0] == '*' || resource.indexOf(this.property.name) !== -1);
-    };
-
-    Property_Condition.prototype.wall_message = function (action) {
-        return 'You do not have permission to ' + action + ' property "' + this.property.fullname() + '".';
-    };
-    return Property_Condition;
-})();
-
 var Trellis_Condition = (function () {
     function Trellis_Condition(trellis) {
         this.actions = [];
@@ -209,7 +184,8 @@ var Trellis_Condition = (function () {
         return this.trellis.name;
     };
 
-    Trellis_Condition.prototype.is_possible_gate = function (gate) {
+    Trellis_Condition.prototype.is_possible_gate = function (gate, context) {
+        if (typeof context === "undefined") { context = null; }
         if (gate.resources === '*' || gate.resources[0] === '*')
             return true;
 
@@ -217,9 +193,42 @@ var Trellis_Condition = (function () {
     };
 
     Trellis_Condition.prototype.wall_message = function (action) {
-        return 'You do not have permission to ' + action + ' trellis "' + this.trellis.name + '".';
+        return 'You do not have permission to ' + action + " trellis '" + this.trellis.name + "'.";
     };
     return Trellis_Condition;
+})();
+
+var Property_Condition = (function () {
+    function Property_Condition(property, actions, is_implicit) {
+        if (typeof is_implicit === "undefined") { is_implicit = false; }
+        this.property = property;
+        this.actions = actions;
+        this.is_implicit = is_implicit;
+    }
+    Property_Condition.prototype.get_path = function () {
+        return this.property.fullname();
+    };
+
+    Property_Condition.prototype.is_possible_gate = function (gate, context) {
+        if (gate.resources === '*' || gate.resources[0] === '*')
+            return true;
+
+        var resource = gate.resources[this.property.parent.name];
+        if (resource == undefined) {
+            // Test for child trellis permission
+            var trellis_test = context;
+            resource = gate.resources[trellis_test.trellis.name];
+            if (resource == undefined)
+                return false;
+        }
+
+        return resource[0] == '*' || resource.indexOf(this.property.name) !== -1;
+    };
+
+    Property_Condition.prototype.wall_message = function (action) {
+        return 'You do not have permission to ' + action + " property '" + this.property.fullname() + "'.";
+    };
+    return Property_Condition;
 })();
 
 var Access_Test = (function () {
@@ -290,7 +299,7 @@ var Result = (function () {
     };
 
     Result.prototype.get_message = function () {
-        return "You are not authorized to perform this request for the following reasons:\n" + this.walls.map(function (wall) {
+        return "You are not authorized to perform this request: \n" + this.walls.map(function (wall) {
             return wall.get_message();
         }).join("\n");
     };
@@ -405,7 +414,7 @@ var Core = (function () {
                     continue;
 
                 var property_gates = trellis_gates.filter(function (gate) {
-                    return condition.is_possible_gate(gate);
+                    return condition.is_possible_gate(gate, trellis_test);
                 });
                 if (property_gates.length == 0 || !this.check_property(user, condition, property_gates)) {
                     if (condition.is_implicit) {

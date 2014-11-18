@@ -106,7 +106,7 @@ class Core {
         if (condition.is_implicit && result.is_blacklisted(condition))
           continue
 
-        var property_gates = trellis_gates.filter((gate)=> condition.is_possible_gate(gate))
+        var property_gates = trellis_gates.filter((gate)=> condition.is_possible_gate(gate, trellis_test))
         if (property_gates.length == 0 || !this.check_property(user, condition, property_gates)) {
           if (condition.is_implicit) {
             if (condition.property.name != condition.property.parent.primary_key)
