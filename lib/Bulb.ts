@@ -21,7 +21,7 @@ class Fortress extends Vineyard.Bulb {
 
     var test = this.core.prepare_query_test(query)
 
-    return this.core.run(user, test)
+    return run(user, test, this.core)
     //return when.resolve(result)
   }
 
@@ -37,7 +37,7 @@ class Fortress extends Vineyard.Bulb {
 
     var test = this.core.prepare_update_test(updates)
 
-    return this.core.run(user, test)
+    return run(user, test, this.core)
   }
 
   user_has_role(user, role_name:string):boolean {

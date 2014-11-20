@@ -5,6 +5,43 @@
 
 /// <reference path="references.ts"/>
 
+function run(user:Vineyard.IUser, test:Access_Test, core:Core):Promise {
+  //console.log(test.trellises)
+  var user_gates = core.get_user_gates(user)
+  var result = new Result()
+//      console.log('gates', user_gates)
+
+  for (var i in test.trellises) {
+    var trellis_test = test.trellises[i]
+    var trellis_gates = user_gates.filter((gate)=> trellis_test.is_possible_gate(gate))
+    if (trellis_gates.length == 0 || !core.check_trellis(user, trellis_test, trellis_gates)) {
+      result.walls.push(new Wall(trellis_test))
+      break
+    }
+
+    for (var j in trellis_test.properties) {
+      var condition = trellis_test.properties[j]
+      if (condition.is_implicit && result.is_blacklisted(condition))
+        continue
+
+      var property_gates = trellis_gates.filter((gate)=> condition.is_possible_gate(gate, trellis_test))
+      if (property_gates.length == 0 || !core.check_property(user, condition, property_gates)) {
+        if (condition.is_implicit) {
+          if (condition.property.name != condition.property.parent.primary_key)
+            result.blacklist_implicit_property(condition)
+        }
+        else {
+          result.walls.push(new Wall(condition))
+          break
+        }
+      }
+    }
+  }
+
+  //console.log(result)
+  return core.post_process_result(result)
+}
+
 interface ICondition {
   get_path():string
   actions:string[]

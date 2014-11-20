@@ -1,7 +1,6 @@
 module.exports = function (grunt) {
 
   grunt.loadNpmTasks('grunt-ts')
-  grunt.loadNpmTasks('grunt-contrib-concat')
   grunt.loadNpmTasks('grunt-contrib-watch')
   grunt.loadNpmTasks('grunt-text-replace')
 
@@ -13,7 +12,7 @@ module.exports = function (grunt) {
         options: {                    // use to override the default options, http://gruntjs.com/configuring-tasks#options
           target: 'es5',            // 'es3' (default) | 'es5'
           module: 'commonjs',       // 'amd' (default) | 'commonjs'
-          sourcemap: false,          // true  (default) | false
+          sourcemap: true,          // true  (default) | false
           declaration: false,       // true | false  (default)
           verbose: true,
           removeComments: false

@@ -147,6 +147,44 @@ var Loader = (function () {
 * Date: 11/9/2014
 */
 /// <reference path="references.ts"/>
+function run(user, test, core) {
+    //console.log(test.trellises)
+    var user_gates = core.get_user_gates(user);
+    var result = new Result();
+
+    for (var i in test.trellises) {
+        var trellis_test = test.trellises[i];
+        var trellis_gates = user_gates.filter(function (gate) {
+            return trellis_test.is_possible_gate(gate);
+        });
+        if (trellis_gates.length == 0 || !core.check_trellis(user, trellis_test, trellis_gates)) {
+            result.walls.push(new Wall(trellis_test));
+            break;
+        }
+
+        for (var j in trellis_test.properties) {
+            var condition = trellis_test.properties[j];
+            if (condition.is_implicit && result.is_blacklisted(condition))
+                continue;
+
+            var property_gates = trellis_gates.filter(function (gate) {
+                return condition.is_possible_gate(gate, trellis_test);
+            });
+            if (property_gates.length == 0 || !core.check_property(user, condition, property_gates)) {
+                if (condition.is_implicit) {
+                    if (condition.property.name != condition.property.parent.primary_key)
+                        result.blacklist_implicit_property(condition);
+                } else {
+                    result.walls.push(new Wall(condition));
+                    break;
+                }
+            }
+        }
+    }
+
+    //console.log(result)
+    return core.post_process_result(result);
+}
 
 var Trellis_Condition = (function () {
     function Trellis_Condition(trellis) {
@@ -393,45 +431,6 @@ var Core = (function () {
         return test;
     };
 
-    Core.prototype.run = function (user, test) {
-        //console.log(test.trellises)
-        var user_gates = this.get_user_gates(user);
-        var result = new Result();
-
-        for (var i in test.trellises) {
-            var trellis_test = test.trellises[i];
-            var trellis_gates = user_gates.filter(function (gate) {
-                return trellis_test.is_possible_gate(gate);
-            });
-            if (trellis_gates.length == 0 || !this.check_trellis(user, trellis_test, trellis_gates)) {
-                result.walls.push(new Wall(trellis_test));
-                break;
-            }
-
-            for (var j in trellis_test.properties) {
-                var condition = trellis_test.properties[j];
-                if (condition.is_implicit && result.is_blacklisted(condition))
-                    continue;
-
-                var property_gates = trellis_gates.filter(function (gate) {
-                    return condition.is_possible_gate(gate, trellis_test);
-                });
-                if (property_gates.length == 0 || !this.check_property(user, condition, property_gates)) {
-                    if (condition.is_implicit) {
-                        if (condition.property.name != condition.property.parent.primary_key)
-                            result.blacklist_implicit_property(condition);
-                    } else {
-                        result.walls.push(new Wall(condition));
-                        break;
-                    }
-                }
-            }
-        }
-
-        //console.log(result)
-        return this.post_process_result(result);
-    };
-
     Core.prototype.post_process_result = function (result) {
         if (result.post_actions.length == 0 || result.walls.length > 0)
             return when.resolve(result.finalize());
@@ -508,7 +507,7 @@ var Fortress = (function (_super) {
 
         var test = this.core.prepare_query_test(query);
 
-        return this.core.run(user, test);
+        return run(user, test, this.core);
         //return when.resolve(result)
     };
 
@@ -524,7 +523,7 @@ var Fortress = (function (_super) {
 
         var test = this.core.prepare_update_test(updates);
 
-        return this.core.run(user, test);
+        return run(user, test, this.core);
     };
 
     Fortress.prototype.user_has_role = function (user, role_name) {
@@ -544,3 +543,4 @@ var Fortress = (function (_super) {
 module.exports = Fortress
 function typescript_bulb_export_hack() {
 }
+//# sourceMappingURL=fortress.js.map
