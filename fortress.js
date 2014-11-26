@@ -394,6 +394,7 @@ var Core = (function () {
                 if (!path)
                     continue;
 
+                path = path.split('.')[0];
                 var properties = query.trellis.get_all_properties();
                 property = properties[path];
                 if (!property)
