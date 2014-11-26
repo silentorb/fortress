@@ -392,6 +392,9 @@ var Core = (function () {
                 var filter = query.filters[i];
                 var properties = query.trellis.get_all_properties();
                 property = properties[filter.path];
+                if (!property)
+                    throw new Error('Could not find ' + filter.path);
+
                 if (property.parent.name == query.trellis.name) {
                     condition.add_property(property, ['query']);
                 }
