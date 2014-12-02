@@ -45,10 +45,15 @@ class Core {
     if (query.filters) {
       for (var i = 0; i < query.filters.length; ++i) {
         var filter = query.filters[i]
+        var path:string = filter.path || filter.property
+        if (!path)
+          continue
+
+        path = path.split('.')[0]
         var properties = query.trellis.get_all_properties()
-        property = properties[filter.path]
+        property = properties[path]
         if (!property)
-          throw new Error('Could not find ' + filter.path)
+          throw new Error('Could not find ' + path)
 
         if (property.parent.name == query.trellis.name) {
           condition.add_property(property, ['query'])
