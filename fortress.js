@@ -204,7 +204,7 @@ var Trellis_Condition = (function () {
 
     Trellis_Condition.prototype.fill_implicit = function () {
         var _this = this;
-        if (!this.properties) {
+        if (this.properties) {
             var primary_keys = this.trellis.get_primary_keys().map(function (p) {
                 return p.name;
             });
@@ -345,6 +345,23 @@ var Result = (function () {
     Result.prototype.finalize = function () {
         this.is_allowed = this.walls.length == 0;
         return this;
+    };
+
+    Result.prototype.secure_query = function (query) {
+        var blacklist = [];
+        for (var i in this.blacklisted_trellis_properties) {
+            var trellis_entry = this.blacklisted_trellis_properties[i];
+            blacklist = blacklist.concat(trellis_entry);
+        }
+        var properties = query.trellis.get_all_properties();
+        var whitelist = [];
+        for (var j in properties) {
+            var property = properties[j];
+            if (blacklist.indexOf(property.name) === -1)
+                whitelist.push(property.name);
+        }
+
+        query.add_properties(whitelist);
     };
     return Result;
 })();

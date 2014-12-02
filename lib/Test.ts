@@ -70,7 +70,7 @@ class Trellis_Condition implements ICondition {
   }
 
   fill_implicit() {
-    if (!this.properties) {
+    if (this.properties) {
       var primary_keys = this.trellis.get_primary_keys().map((p)=> p.name)
       var properties = MetaHub.filter(this.trellis.get_all_properties(),
         (p)=> primary_keys.indexOf(p.name) == -1)
@@ -215,4 +215,21 @@ class Result {
     this.is_allowed = this.walls.length == 0
     return this
   }
+
+	secure_query(query:Ground.Query_Builder) {
+		var blacklist = []
+		for (var i in this.blacklisted_trellis_properties) {
+			var trellis_entry = this.blacklisted_trellis_properties[i]
+			blacklist = blacklist.concat(trellis_entry)
+		}
+		var properties = query.trellis.get_all_properties()
+		var whitelist = []
+		for (var j in properties) {
+			var property = properties[j]
+			if (blacklist.indexOf(property.name) === -1)
+				whitelist.push(property.name)
+		}
+
+		query.add_properties(whitelist)
+	}
 }
