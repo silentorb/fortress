@@ -217,6 +217,9 @@ class Result {
   }
 
 	secure_query(query:Ground.Query_Builder) {
+    if (query.properties && Object.keys(query.properties).length > 0)
+      return
+
 		var blacklist = []
 		for (var i in this.blacklisted_trellis_properties) {
 			var trellis_entry = this.blacklisted_trellis_properties[i]

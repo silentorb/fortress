@@ -45,7 +45,7 @@ class Core {
     if (query.filters) {
       for (var i = 0; i < query.filters.length; ++i) {
         var filter = query.filters[i]
-        var path:string = filter.path || filter.property
+        var path:string = filter.path || filter.property.name
         if (!path)
           continue
 

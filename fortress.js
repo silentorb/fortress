@@ -348,6 +348,9 @@ var Result = (function () {
     };
 
     Result.prototype.secure_query = function (query) {
+        if (query.properties && Object.keys(query.properties).length > 0)
+            return;
+
         var blacklist = [];
         for (var i in this.blacklisted_trellis_properties) {
             var trellis_entry = this.blacklisted_trellis_properties[i];
@@ -407,7 +410,7 @@ var Core = (function () {
         if (query.filters) {
             for (var i = 0; i < query.filters.length; ++i) {
                 var filter = query.filters[i];
-                var path = filter.path || filter.property;
+                var path = filter.path || filter.property.name;
                 if (!path)
                     continue;
 
