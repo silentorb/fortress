@@ -40,35 +40,43 @@ class Core {
 
   prepare_query_test(query:Ground.Query_Builder):Access_Test {
     var test = new Access_Test()
-    var property
     var condition = test.add_trellis(query.trellis, ['query'])
     if (query.filters) {
-      for (var i = 0; i < query.filters.length; ++i) {
-        var filter = query.filters[i]
-        var path:string = filter.path || filter.property.name
-        if (!path)
-          continue
-
-        path = path.split('.')[0]
-        var properties = query.trellis.get_all_properties()
-        property = properties[path]
-        if (!property)
-          throw new Error('Could not find ' + path)
-
-        if (property.parent.name == query.trellis.name) {
-          condition.add_property(property, ['query'])
-        }
-      }
+      this.prepare_query_filters(query.filters, condition, query)
     }
     if (query.properties) {
       for (var name in query.properties) {
-        property = query.trellis.get_all_properties()[name]
+        var property = query.trellis.get_all_properties()[name]
         condition.add_property(property, ['query'])
       }
     }
 
     test.fill_implicit()
     return test
+  }
+
+  prepare_query_filters(filters, condition, query:Ground.Query_Builder) {
+    for (var i = 0; i < filters.length; ++i) {
+      var filter = filters[i]
+      if (filter.type == 'or' || filter.type == 'and') {
+        this.prepare_query_filters(filter.filters, condition, query)
+        continue
+      }
+
+      var path:string = filter.path || filter.property.name
+      if (!path)
+        continue
+
+      path = path.split('.')[0]
+      var properties = query.trellis.get_all_properties()
+      var property = properties[path]
+      if (!property)
+        throw new Error('Could not find ' + path)
+
+      if (property.parent.name == query.trellis.name) {
+        condition.add_property(property, ['query'])
+      }
+    }
   }
 
   prepare_update_test(updates:any[]):Access_Test {
