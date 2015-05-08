@@ -1,16 +1,13 @@
-/**
- * User: Chris Johnson
- * Date: 11/9/2014
- */
-
 /// <reference path="references.ts"/>
+
+function this_only_exists_to_kick_typescript_to_keep_the_above_comments() {}
 
 ///***var when = require('when')
 ///***var Vineyard = require('vineyard')
 ///***var MetaHub = require('vineyard-metahub')
 ///***var Ground = require('vineyard-ground')
 
-function this_only_exists_to_kick_typescript_to_keep_the_above_comments() {}
+function this_only_exists_to_kick_typescript_to_keep_the_above_comments2() {}
 
 interface Zone {
   roles:string[]
@@ -18,18 +15,17 @@ interface Zone {
 }
 
 class Gate extends MetaHub.Meta_Object {
-  //fortress:Fortress
-//    on:string[]
   resources:any
   actions:string[]
   name:string
 
   constructor(source:Gate_Source) {
     super()
-    //this.fortress = fortress
     this.name = source.type
     this.actions = source.actions
     this.resources = source.resources
+    if (!source.resources)
+      throw new Error('Gate ' + this.name + ' is missing resources')
   }
 
   check(user:Vineyard.IUser, resource, info = null):boolean {
@@ -76,7 +72,7 @@ class User_Content extends Gate {
     return filters.length == 0
   }
 
-  limited_to_user(query:Ground.Query_Builder, user:Vineyard.IUser):boolean {
+  limited_to_user(query:mining.Query_Builder, user:Vineyard.IUser):boolean {
     var filters = query.filters.filter((filter)=> filter.path == 'user')
     if (filters.length !== 1)
       return false

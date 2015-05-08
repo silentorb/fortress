@@ -50,16 +50,16 @@ interface ICondition {
 }
 
 class Trellis_Condition implements ICondition {
-  trellis:Ground.Trellis
+  trellis:landscape.Trellis
   actions:string[] = []
   properties:{ [key: string]: Property_Condition
   } = {}
 
-  constructor(trellis:Ground.Trellis) {
+  constructor(trellis:landscape.Trellis) {
     this.trellis = trellis
   }
 
-  add_property(property:Ground.Property, actions:string[]) {
+  add_property(property:landscape.Property, actions:string[]) {
     var primary_keys = this.trellis.get_primary_keys()
     for (var i = 0; i < primary_keys.length; ++i) {
       if (primary_keys[i].name == property.name)
@@ -97,13 +97,13 @@ class Trellis_Condition implements ICondition {
 }
 
 class Property_Condition implements ICondition {
-  property:Ground.Property
+  property:landscape.Property
   actions:string[]
   // If the query did not specify any properties, all properties are added implicitly
   // and will be silently removed if inaccessible
   is_implicit:boolean
 
-  constructor(property:Ground.Property, actions:string[], is_implicit:boolean = false) {
+  constructor(property:landscape.Property, actions:string[], is_implicit:boolean = false) {
     this.property = property
     this.actions = actions
     this.is_implicit = is_implicit
@@ -140,7 +140,7 @@ class Access_Test {
   trellises:{ [key: string]: Trellis_Condition
   } = {}
 
-  add_trellis(trellis:Ground.Trellis, actions:string[]):Trellis_Condition {
+  add_trellis(trellis:landscape.Trellis, actions:string[]):Trellis_Condition {
     if (!this.trellises[trellis.name]) {
       this.trellises[trellis.name] = new Trellis_Condition(trellis)
     }
@@ -191,7 +191,7 @@ class Result {
   walls:Wall[] = []
   blacklisted_trellis_properties = {}
   is_allowed:boolean = false
-  additional_filters:Ground.Query_Filter[] = []
+  additional_filters:mining.Query_Filter[] = []
   post_actions:any[] = []
 
   blacklist_implicit_property(condition:Property_Condition) {
@@ -216,7 +216,7 @@ class Result {
     return this
   }
 
-	secure_query(query:Ground.Query_Builder) {
+	secure_query(query:mining.Query_Builder) {
     if (query.properties && Object.keys(query.properties).length > 0)
       return
 

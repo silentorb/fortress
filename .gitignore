@@ -1,5 +1,7 @@
-tscommand.tmp.txt
+tscommand*.tmp.txt
 *.map
 node_modules
 .tscache
-
+lib/*.js
+lib/*.d.ts
+lib/*.js.map
