@@ -1,3 +1,8 @@
+/**
+ * User: Chris Johnson
+ * Date: 11/9/2014
+ */
+
 /// <reference path="references.ts"/>
 
 class Fortress extends Vineyard.Bulb {
@@ -7,7 +12,7 @@ class Fortress extends Vineyard.Bulb {
     this.core = new Core(this.config, this.ground)
   }
 
-  query_access(user:Vineyard.IUser, query:mining.Query_Builder):Promise {
+  query_access(user:Vineyard.IUser, query:Ground.Query_Builder):Promise {
     if (typeof user !== 'object')
       throw new Error('Fortress.update_access() requires a valid user object, not "' + user + '".')
 
@@ -43,5 +48,3 @@ class Fortress extends Vineyard.Bulb {
     return false
   }
 }
-
-module.exports = Fortress

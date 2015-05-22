@@ -1,3 +1,8 @@
+/**
+ * User: Chris Johnson
+ * Date: 11/9/2014
+ */
+
 /// <reference path="references.ts"/>
 
 class Core {
@@ -12,8 +17,7 @@ class Core {
   }
 
   get_roles(user):Promise {
-    var user_trellis = this.ground.schema.trellises['user']
-    return this.ground.assure_properties(user_trellis, user, ['id', 'name', 'roles'])
+    return this.ground.trellises['user'].assure_properties(user, ['id', 'name', 'roles'])
   }
 
   user_has_role(user, role_name:string):boolean {
@@ -34,7 +38,7 @@ class Core {
     return false
   }
 
-  prepare_query_test(query:mining.Query_Builder):Access_Test {
+  prepare_query_test(query:Ground.Query_Builder):Access_Test {
     var test = new Access_Test()
     var condition = test.add_trellis(query.trellis, ['query'])
     if (query.filters) {
@@ -51,7 +55,7 @@ class Core {
     return test
   }
 
-  prepare_query_filters(filters, condition, query:mining.Query_Builder) {
+  prepare_query_filters(filters, condition, query:Ground.Query_Builder) {
     for (var i = 0; i < filters.length; ++i) {
       var filter = filters[i]
       if (filter.type == 'or' || filter.type == 'and') {
@@ -135,7 +139,7 @@ class Core {
     return result
   }
 
-  static find_filter(query:mining.Query_Builder, path:string):mining.Query_Filter {
+  static find_filter(query:Ground.Query_Builder, path:string):Ground.Query_Filter {
     if (!query.filters)
       return null
 
